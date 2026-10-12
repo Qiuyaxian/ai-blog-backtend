@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "codebase-memory": {
+      "command": "codebase-memory-mcp",
+      "args": [],
+      "env": {
+        "CBM_CACHE_DIR": ".codebase-memory"
+      }
+    },
+    "headroom": {
+      "command": "headroom",
+      "args": ["mcp", "serve"],
+      "env": {
+        "HEADROOM_REQUIRE_RUST_CORE": "false"
+      }
+    }
+  }
+}
