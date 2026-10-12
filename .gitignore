@@ -1,6 +1,8 @@
 # compiled output
 /dist
 /node_modules
+/.corepack-cache
+/.pnpm-store
 
 # Logs
 logs
@@ -33,3 +35,9 @@ lerna-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# cursor
+.cursor/rules/000-tool-status.mdc
+
+# codebase-memory 本地索引数据（二进制，机器本地生成）
+/.codebase-memory/
