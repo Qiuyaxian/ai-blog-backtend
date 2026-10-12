@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from '@nestjs/config';
+import { HealthModule } from './health/health.module';
+import { buildMongooseOptions } from './mongoose.config';
 
 @Module({
   imports: [
@@ -10,6 +13,11 @@ import { ConfigModule } from '@nestjs/config';
       envFilePath: `.env.${process.env.NODE_ENV || 'local'}`,
       isGlobal: true, // 设为全局，其他模块无需重复导入 ConfigModule
     }),
+    MongooseModule.forRootAsync({
+      inject: [ConfigService], // ConfigModule 已 isGlobal，无需再 imports: [ConfigModule]
+      useFactory: buildMongooseOptions,
+    }),
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
