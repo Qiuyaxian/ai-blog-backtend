@@ -4,50 +4,20 @@
 
 ## 📚 文档导航
 
-| 文档区域      | 路径                                                 | 说明                         |
-| ------------- | ---------------------------------------------------- | ---------------------------- |
-| 项目根 README | [../README.md](../README.md)                         | 项目简介、快速开始、目录概览 |
-| 系统架构      | [architecture/README.md](architecture/README.md)     | 整体架构、模块划分、关键流程 |
-| 架构概览      | [architecture/overview.md](architecture/overview.md) | 系统上下文、容器视图、技术栈 |
-| 运维手册      | [runbooks/README.md](runbooks/README.md)             | 部署、回滚、故障处理         |
-
----
-
-## 🗂️ 目录结构
-
-```text
-ai-blog-backtend/
-├── README.md                 # 本文件
-├── docs/
-│   ├── index.md              # 文档总索引
-│   ├── architecture/         # 系统架构
-│   │   ├── README.md
-│   │   ├── overview.md       # 架构概览
-│   └── runbooks/             # 运维手册
-│       ├── README.md
-│       ├── deploy.md
-│       └── rollback.md
-├── src/                      # 源代码
-├── test/                     # 测试
-├── scripts/                  # 辅助脚本
-├── package.json              # 包管理
-├── .husky/                   # 代码提交拦截
-├── .gitignore                # git 提交忽略
-├── tsconfig.json             # typescript 配置
-├── tsconfig.build.json       # typescript 打包配置
-├── nest-cli.json             # nestjs 打包
-├── README.md                 # 项目说明文档
-├── .prettierrc               # prettier 格式化配置
-├── .eslintrc.js              # eslint 格式化配置
-├── .lintstagedrc.json        # lint-staged 格式化配置
-├── commitlint.config.js      # cz-git & commitizen 配置
-├── .env.local                # 本地环境配置 配置
-├── .env.uat                  # uat测试环境配置 配置
-├── .env.production           # 生产环境配置 配置
-├── _templates                # 模版快速生成
-└── LICENSE                   # 开源协议
-
-```
+- [项目根 README](../README.md)
+- [项目上下文 context.md](./context.md)（跨会话动态记忆）
+- [架构索引](./architecture/README.md)
+- [架构总览](./architecture/overview.md)
+- [ADR 索引](./architecture/README.md#adr-索引)
+- [开发指南](./development/development.md)
+- [开发规范](./development/coding-style.md)
+- [运维手册](./operations/README.md)
+- [问题记录](./issues/README.md)
+- [Ponytail 手册](./ponytail/README.md)
+- [Headroom 手册](./headroom/README.md)
+- [Caveman 手册](./caveman/README.md)
+- [Codebase-Memory 手册](./codebase-memory/README.md)
+- [Open-Code-Review 手册](./open-code-review/README.md)
 
 ---
 
@@ -55,11 +25,12 @@ ai-blog-backtend/
 
 - 本索引 `docs/index.md` 是文档总入口，新增文档后必须更新本文件。
 - 每个子目录都有自己的 `README.md` 作为局部索引。
+- 每个文件需要维护文末「更新记录」，只记重要变更（最新在上），格式：`YYYY-MM-DD @负责人：变更说明`；完整历史见 Git。
 
 ---
 
 ## 📅 更新记录
 
-| 日期       | 变更           | 负责人 |
-| ---------- | -------------- | ------ |
-| 2026-09-21 | 创建文档总索引 | 架构组 |
+> 只记重要变更，最新在上。完整历史见 Git。
+
+- 2026-10-12 @架构组：文档去重与事实统一——monitoring.md 并入 observability.md；engineering/ 5 篇按真实配置重写；修复坏链/导航/ADR 索引；统一 Node 20、SLO 99.9%、env 自动加载等口径；清理 changelog 样板条目。

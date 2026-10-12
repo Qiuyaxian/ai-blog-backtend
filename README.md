@@ -38,7 +38,7 @@
 | --------------------------------------------------------------------------- | -------------------- |
 | 文档总入口见 [docs/index.md](docs/index.md)                                 | 文档总索引           |
 | 详细架构请见 [docs/architecture/overview.md](docs/architecture/overview.md) |
-| 运维手册 [docs/runbooks/README.md](docs/runbooks/README.md)                 | 部署、回滚等运维手册 |
+| 运维手册 [docs/operations/README.md](docs/operations/README.md)             | 部署、回滚等运维手册 |
 
 ---
 
@@ -46,9 +46,9 @@
 
 - 代码风格：ESLint + Prettier
 - 提交规范：Conventional Commits
-- 分支策略：Trunk Based / Git Flow
-- CI/CD：GitHub Actions / Harness Pipeline
-- 部署与回滚见 [docs/runbooks/](docs/runbooks/)
+- 分支策略：main 生产 / develop 集成，见 [AGENTS.md §6.5](AGENTS.md)
+- CI/CD：规划中（GitHub Actions），见 [CI/CD 流程](docs/architecture/engineering/ci-cd.md)
+- 部署与回滚见 [docs/operations/](docs/operations/)
 
 ---
 
@@ -56,12 +56,12 @@
 
 ### 环境要求
 
-- Node.js >= 18 LTS
+- Node.js >= 20（见 `.nvmrc`）
 - Pnpm >= 9.x
 - Cursor
-- MongoDB >= 6.x
-- Redis >= 7.x
-- Docker + Docker Compose（推荐）
+- MongoDB >= 7
+- Redis 4.0.11
+- Docker + Docker Compose（可选，仓库当前未提交 docker-compose.yml）
 
 ### 安装依赖
 
@@ -127,7 +127,7 @@ $ pnpm commit
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request。  
-贡献前请阅读 [README.md](README.md)。
+贡献前请阅读 [AGENTS.md](AGENTS.md) 的工作流程与禁止事项。
 
 ---
 

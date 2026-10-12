@@ -1,130 +1,59 @@
-# 【ai-blog-backtend】架构设计
+# 架构文档索引
 
-> 本文档描述 【ai-blog-backtend】 的整体架构设计，包括系统上下文、模块划分、技术选型、数据流、部署拓扑、工程化约束等内容。
-> 相关技术文档统一在对应章节或文末链接。
-> 文档导航与项目概述见 [index.md](./index.md)。
+## AI 阅读指引
 
-## 1. 系统上下文
+- 不要预读本目录下所有文件。
+- 根据任务，按下表只读取相关子文件。
+- 本文件已能回答时，不要继续读子文件。
 
-## 2. 总体架构
+## 按需阅读
 
-```text
-+----------------+
-|   Client/UI    |
-+--------+-------+
-         |
-+--------v-------+
-|   API/网关      |
-+--------+-------+
-         |
-+--------v-------+
-|   业务服务层    |
-+--------+-------+
-         |
-+--------v-------+
-| 数据/存储/外部  |
-+----------------+
-```
+| 当任务涉及   | 读取文件                                                 |
+| ------------ | -------------------------------------------------------- |
+| 架构总览     | [./overview.md](./overview.md)                           |
+| 模块依赖     | [./module-dependencies.md](./module-dependencies.md)     |
+| 关键数据流   | [./data-flows.md](./data-flows.md)                       |
+| 架构编码规范 | [./development-standards.md](./development-standards.md) |
+| 工程化概览   | [./engineering/README.md](./engineering/README.md)       |
+| 架构决策 ADR | [ADR 索引](#adr-索引)（文件在 `adr/`）                   |
+| 模块设计文档 | `design/` 目录，命名 `{module}.md`                       |
 
-## 3. 模块划分
+## 读者导航
 
-| 模块 | 职责 | 关键依赖 |
-| ---- | ---- | -------- |
+| 角色       | 建议阅读顺序                                  |
+| ---------- | --------------------------------------------- |
+| 新成员     | 系统概览 → 模块地图 → 各模块 design.md        |
+| 修改某模块 | 对应 design.md → 关联 ADR                     |
+| 做架构决策 | ADR 索引 → 相关 design.md → 新建 ADR          |
+| AI 代理    | `AGENTS.md` → 本 README → 按需加载 design/ADR |
 
-## 4. 技术选型
+## ADR 索引
 
-| 类别     | 技术                     | 版本          | 说明             |
-| -------- | ------------------------ | ------------- | ---------------- |
-| 前端     | Vue 3 / React            | 最新稳定版    | 按团队熟悉度选择 |
-| 后端     | NestJS                   | 提供 REST API |
-| 数据库   | MongoDB                  | 6.x           | 主数据存储       |
-| 缓存     | Redis                    | 7.x           | 会话、缓存、限流 |
-| 消息队列 | RabbitMQ / Kafka         | 规划中        | 异步通知         |
-| 邮件     | Nodemailer / SendGrid    | 规划中        | 邮件发送         |
-| 部署     | Docker + Docker Compose  | 最新          | 本地与生产       |
-| CI/CD    | GitHub Actions / Harness | 最新          | 自动化构建与部署 |
-| 监控     | Prometheus + Grafana     | 最新          | 指标与告警       |
-| 包管理器 | pnpm                     | 9.15.9        | node >= 18       |
+| 编号                                | 标题                          | 状态      | 日期       | 影响模块                |
+| ----------------------------------- | ----------------------------- | --------- | ---------- | ----------------------- |
+| [ADR-001](./adr/ADR-001-mongodb.md) | 采用 MongoDB 作为核心数据存储 | Confirmed | 2026-10-12 | 数据存储 / 全部业务模块 |
 
-## 5. 数据流与存储
+> 新增 ADR 时，在此表追加一行。详细内容见 `adr/` 目录。
 
-## 6. 部署拓扑
+## 文档维护规范
 
-## 7. 安全与可观测性
+- 设计文档放在 `design/`，命名 `{module}.md`
+- ADR 放在 `adr/`，命名 `ADR-{4位编号}-{短标题}.md`
+- 新增文档后必须更新本 README
+- 架构发生变化时，必须同步更新 `overview.md` 和相关专题文档
+- `design.md` 必须引用相关 ADR
+- ADR 不硬编码 `design.md` 路径，只写影响模块/主题
+- 反向链接由工具或 CI 自动生成
+- 架构图优先使用 Mermaid，便于版本管理和评审
+- 文档应标明状态、最后更新时间和维护人
 
-### 7.1 安全与权限
+## 10. 维护规则
 
-### 7.2 可观测性
+- `design`：就地覆盖，保持当前有效
+- `ADR`：只追加，旧决策标记 `Superseded`
+- 每季度审查一次 ADR 状态
+- 文档无 Owner 时，应分配或删除
 
-## 8. 工程化
+## 11. 更新记录
 
-### 8.1 内置工具
-
-### 8.1.1 Git Hooks：Husky
-
-Husky 用于管理 Git hooks，在提交、推送等阶段执行本地校验，避免不符合规范的代码进入仓库。
-
-- 官方文档：[Husky - Git hooks](https://typicode.github.io/husky/)
-- 项目内配置：`.husky/`
-- 相关脚本：`package.json` 中 `prepare`、`lint-staged` 等
-- 说明：外部文档仅作为参考，具体以项目配置为准。
-
-常见 hooks：
-
-| Hook         | 作用                                | 项目内配置          |
-| ------------ | ----------------------------------- | ------------------- |
-| `pre-commit` | 提交前运行 lint、格式化、类型检查等 | `.husky/pre-commit` |
-| `commit-msg` | 校验提交信息格式                    | `.husky/commit-msg` |
-| `pre-push`   | 推送前运行测试或轻量检查            | `.husky/pre-push`   |
-
-相关外部文档：
-
-- [Husky 官方文档](https://typicode.github.io/husky/)
-- [Husky GitHub 仓库](https://github.com/typicode/husky)
-- [lint-staged 官方文档](https://github.com/lint-staged/lint-staged)
-- [Commitlint 官方文档](https://commitlint.js.org/)
-
-> 说明：Husky 属于开发阶段的工程化工具，不直接影响运行时架构。此处的目的是记录它带来的开发约束、配置入口和外部参考文档。
-
-### 8.1.2 template create: hygen
-
-hygen 用于快速初始化生成指定格式的文档，如 docs 文档，nestjs 模块代码
-
-- 官方文档：[hygen](https://github.com/jondot/hygen)
-- 项目内配置：`npm run new`
-- 相关脚本：`package.json` 中 `new` 等
-- 说明：外部文档仅作为参考，具体以项目配置为准。
-
-相关外部文档：
-
-- [hygen 官方文档](https://github.com/jondot/hygen)
-
-### 8.2 代码规范与格式化
-
-- 代码规范：ESLint / Prettier
-- 提交前检查：lint-staged
-- 提交信息规范：@commitlint & commitizen & cz-git
-
-### 8.3 CI/CD
-
-- CI：GitHub Actions / GitLab CI / Jenkins
-- 构建：
-- 测试：
-- 部署：
-
-### 8.4 本地开发命令
-
-## 9. 关键设计决策
-
-| 决策 | 背景 | 选择 | 影响 |
-| ---- | ---- | ---- | ---- |
-
-## 相关文档
-
-- [项目概述与导航](./index.md)
-- [Husky 官方文档](https://typicode.github.io/husky/)
-
-## 变更记录
-
-| 日期 | 版本 | 变更人 | 说明 |
-| ---- | ---- | ------ | ---- |
+> 只记重要变更，最新在上。完整历史见 Git。
