@@ -97,6 +97,8 @@ pnpm run start:local
 - [Caveman](./docs/caveman/README.md)：精简沟通模式
 - [Codebase Memory](./docs/codebase-memory/README.md)：代码库记忆 MCP
 - [Open Code Review](./docs/open-code-review/README.md)：AI 代码审查 CLI
+- [Spec Kit 快速上手](./docs/spec-kit/README.md)：AI Spec-Kit 使用教程
+- [Superpowers 快速上手](./docs/superpowers/README.md)：AI Superpowers 使用教程
 
 ## 4. 加载规则
 
@@ -118,7 +120,7 @@ pnpm run start:local
 
 <!-- 后续章节预留：5.2 memory 记忆（或者 issues 记录） ... -->
 
-## 6. 工作流程
+## 6. 开发要求
 
 ### 6.1 开发原则
 
@@ -133,7 +135,7 @@ pnpm run start:local
 - [团队代码规范](./docs/architecture/engineering/code-style.md)： 团队代码规范
 - [开发规范](./docs/development/coding-style.md)： 开发规范
 
-### 6.3 测试流程
+### 6.3 测试规范
 
 - 运行时：Node 20+（见 `.nvmrc`）+ pnpm 9
 - 安装依赖：`pnpm install`
@@ -178,7 +180,70 @@ pnpm run start:local
 - 不要提交敏感信息（API Key、密码、Token）。
 - 更多的 commit 要求请按[提交信息规范](./docs/architecture/engineering/commit-convention.md)
 
-## 7. 禁止事项
+## 7. 工作流总览
+
+本项目采用 Spec-Kit + Superpowers 手动集成工作流。产物统一落盘到 `specs/<feature>/`（含 `spec.md`、`plan.md`、`tasks.md`）；`<feature>` 用短横线小写命名。
+
+### 7.1 阶段一：Spec-Kit 设计 (WHAT)
+
+1.  `/speckit.constitution` — 建立或更新项目宪法。
+2.  `/speckit.specify` — 撰写功能规范 `specs/<feature>/spec.md`。
+3.  `/speckit.clarify` — 澄清规范中的模糊点（按需，可多轮）。
+4.  `/speckit.plan` — 生成实现计划 `plan.md`。
+5.  `/speckit.tasks` — 生成任务清单 `tasks.md`。
+6.  `/speckit.analyze` — **强制闸门**：校验 spec/plan/tasks 三者一致性；有不一致必须先修复，不得进入交接。
+
+### 7.2 阶段二：手动交接 (HANDOFF)
+
+7.  **强制步骤**：在 analyze 通过后，创建或更新 `.specify/superpowers-handoff.json`（字段见 §7.5）。
+8.  填全 `feature_directory`、`tasks_file`、`source_of_truth`、`constitution`，再将 `status` 置为 `ready_for_execution`。字段不全禁止置位。
+
+### 7.3 阶段三：Superpowers 执行 (HOW)
+
+9.  **强制步骤**：执行任何实现前，读取 `.specify/superpowers-handoff.json`。
+10. 仅当 `status=ready_for_execution` 时，写入 `claimed_by`/`claimed_at` 并将状态原子置为 `executing`（认领，见 §7.5）。
+11. 使用 `superpowers:executing-plans` 技能，以 `tasks_file` 为唯一执行依据。
+12. **TDD 范围**：凡新增/修改生产逻辑代码的任务，必须先写失败测试（RED）→ 最小实现（GREEN）→ 重构（REFACTOR），技能 `superpowers:test-driven-development`；纯文档、配置、重命名任务在 `tasks.md` 标注 `[no-test]` 后豁免。
+13. 全部任务完成后，跑 `superpowers:verification-before-completion`（可用 `/speckit.converge` 对照规格补漏），通过才将 `status` 置为 `complete`。
+14. 执行中断、任务失败或阻塞时，置 `status=blocked` 并写 `reason`，不得停留在 `executing`。
+
+### 7.4 核心约束
+
+- **唯一真相来源**：设计以 `spec.md`/`plan.md` 为准，任务执行以 `tasks.md` 为准；handoff 的 `source_of_truth` 指向 feature 目录，`tasks_file` 指向具体任务文件。
+- **执行权唯一**：实现阶段只允许走 Superpowers（§7.3）。**禁止调用 `/speckit.implement`** 绕过 TDD。
+- **禁止重叠**：`status=executing` 时，禁止再次调用 `/speckit.plan` 或 `/speckit.tasks`；需改规划先落 `blocked` 并人工确认。
+- **宪法优先**：执行时必须读取并遵守 `.specify/memory/constitution.md`。
+
+### 7.5 交接文件维护规则
+
+- 路径：`.specify/superpowers-handoff.json`；维护者：当前 feature 的编排 Agent，人类审查。
+- 状态机：
+
+```text
+draft → ready_for_execution → executing → complete
+                    ↑            │
+                    +────────────┴→ blocked（填 reason，人工处理后回 ready_for_execution）
+```
+
+- 仅在状态转换或引用路径变化时修改；`last_updated` 不作心跳。
+- 并发保护：进入 `executing` 必须同时写 `claimed_by`（Agent/会话标识）与 `claimed_at`（ISO 时间）；已被认领且非本人时不得接管。
+- 完整字段示例：
+
+```json
+{
+  "feature_directory": "specs/user-login",
+  "source_of_truth": "specs/user-login",
+  "tasks_file": "specs/user-login/tasks.md",
+  "constitution": ".specify/memory/constitution.md",
+  "status": "ready_for_execution",
+  "claimed_by": "",
+  "claimed_at": "",
+  "reason": "",
+  "last_updated": "2026-10-13T22:00:00+08:00"
+}
+```
+
+## 8. 禁止事项
 
 - 禁止提交密钥、令牌、密码，但是 `.env.local`，`.env.uat`，`.env.production` 三个文件除外.
 - 禁止直接修改 `main` 分支.
@@ -187,9 +252,9 @@ pnpm run start:local
 - 禁止引入未经验证的外部依赖。
 - 禁止在未更新文档的情况下合并架构级变更。
 
-## 8. 文档状态说明
+## 9. 文档状态说明
 
-### 8.1 描述文档
+### 9.1 描述文档
 
 | 中文状态 | 英文状态   | 枚举值       | 说明                                         |
 | -------- | ---------- | ------------ | -------------------------------------------- |
@@ -209,7 +274,7 @@ pnpm run start:local
 任意状态 → 已归档
 ```
 
-### 8.2 架构类 ADR 文档 与 Design 文档
+### 9.2 架构类 ADR 文档 与 Design 文档
 
 | 中文状态 | 英文状态   | 枚举值       | 说明                                         |
 | -------- | ---------- | ------------ | -------------------------------------------- |
@@ -220,13 +285,4 @@ pnpm run start:local
 | 已废弃   | Deprecated | `Deprecated` | 不再维护，被新文档替代                       |
 | 已归档   | Archived   | `Archived`   | 历史留存，不再变更                           |
 
-## 状态流转
-
-```text
-草稿 → 待确认 → 已确认 → 已发布 → 已废弃
-  ↑       ↓________|        |         |
-  +--------回退-------------+---------+
-任意状态 → 已归档
-```
-
-<!-- 后续章节预留：8.2 流程文档状态、8.3 ... -->
+<!-- 后续章节预留：9.3 流程文档状态、9.4 ... -->

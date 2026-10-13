@@ -1,0 +1,33 @@
+---
+description: 将 Spec-kit 工作流与 Superpowers 执行纪律绑定
+globs: ["specs/**/*.md", "src/**/*", "test/**/*"]
+alwaysApply: true
+---
+
+# Spec-kit + Superpowers 集成规则
+
+完整流程以 AGENTS.md §7 为准；本文件只放执行期硬约束。
+
+## 阶段绑定
+- 当处理 `specs/*/tasks.md` 时，禁止直接生成实现代码。
+- 实现前必须先过 `/speckit.analyze` 一致性闸门，并完成 handoff（status=ready_for_execution）。
+
+## TDD 强制
+- 新增/修改生产逻辑代码的任务，必须调用 Superpowers 的 `test-driven-development`：
+  1. 先写失败测试（RED）
+  2. 最小实现使测试通过（GREEN）
+  3. 重构并保持绿灯（REFACTOR）
+- 无失败测试就写的生产代码必须删除重写。
+- 豁免：纯文档、配置、重命名任务，在 `tasks.md` 标注 `[no-test]`。
+
+## 交接文件
+- 路径 `.specify/superpowers-handoff.json`；字段定义见 AGENTS.md §7.5。
+- `status=ready_for_execution` 时认领（写 claimed_by/claimed_at）并转为 `executing`，再进入 Superpowers 执行模式。
+- `source_of_truth` 指向 feature 目录；`tasks_file` 指向 tasks.md，是执行依据。
+- 中断/失败/阻塞时转 `blocked` 并填 reason，禁止停留在 executing。
+
+## 禁止行为
+- 禁止调用 `/speckit.implement` 绕过 Superpowers/TDD。
+- status=executing 时禁止重新跑 `/speckit.plan` 或 `/speckit.tasks`。
+- 不得自行重新规划任务（Spec-kit 拥有规划权）。
+- 不得跳过测试直接实现功能（[no-test] 豁免项除外）。
