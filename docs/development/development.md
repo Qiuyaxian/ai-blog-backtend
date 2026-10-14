@@ -6,6 +6,8 @@
 pnpm install
 ```
 
+> `bcrypt` 含原生构建脚本，安装后若 `require('bcrypt')` 报 `bcrypt_lib.node` 找不到，见 [§8 故障排查 · bcrypt 原生绑定](#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
+
 ## 2. 启动基础服务
 
 任选一种方式：**本地启动** 或 **Docker Compose 启动**。
@@ -78,3 +80,70 @@ pnpm run build:prod
 ## 7. 更新记录
 
 > 只记重要变更，最新在上。完整历史见 Git。
+
+- 2026-10-14：新增 §8 故障排查——记录 bcrypt 原生绑定/`ERR_PNPM_IGNORED_BUILDS`（pnpm ≥10 构建脚本白名单 `allowBuilds`）、沙箱内重装导致 `node_modules` 半损坏、Node 版本、MongoDB IPv6 四个已踩坑点及修复命令；§1 安装依赖加指针。
+
+## 8. 故障排查
+
+### 8.1 bcrypt 原生绑定缺失 / 构建脚本被忽略
+
+**症状**
+
+- `pnpm install` / `pnpm rebuild bcrypt` 末尾出现 `ERR_PNPM_IGNORED_BUILDS` 与 `Ignored build scripts: bcrypt@..., @nestjs/core@...`。
+- 运行测试或启动时报：
+
+  ```text
+  Error: Cannot find module '.../bcrypt/lib/binding/napi-v3/bcrypt_lib.node'
+  ```
+
+**根因**
+
+pnpm ≥10 出于供应链安全，默认不执行依赖包的 install 脚本。`bcrypt` 是原生模块，必须运行 install 脚本（`node-pre-gyp`）下载/编译 `bcrypt_lib.node`；脚本被跳过就缺二进制。
+
+**已落实的配置（不要重复排查）**
+
+- `pnpm-workspace.yaml` 的 `allowBuilds`（pnpm 10/12 读取）：
+
+  ```yaml
+  allowBuilds:
+    bcrypt: true # 允许原生绑定构建
+    '@nestjs/core': false # 仅捐赠提示脚本，禁止
+  ```
+
+- `package.json` 的 `pnpm.onlyBuiltDependencies: ["bcrypt"]`：pnpm 9 读取。两处并存以兼容 pnpm 9 与 10+。
+
+**修复命令**
+
+```bash
+# Node 必须 >=20（项目 .nvmrc=20），先确认
+node -v
+# 批准后重编译 bcrypt
+pnpm rebuild bcrypt
+node -e "require('bcrypt'); console.log('BCRYPT_OK')"
+```
+
+> 仍报 `ERR_PNPM_IGNORED_BUILDS` 时，检查 `pnpm-workspace.yaml` 的值是否是 pnpm 自动写入的占位串
+> （形如 `bcrypt: set this to true or false`）——占位串不是 `true`，需手动改成 `bcrypt: true` 再 rebuild。
+
+### 8.2 pnpm install 报 `ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR`
+
+**症状**：安装失败，提示 `Failed to remove .../node_modules/.pnpm ... Operation not permitted`，且随后本地 eslint/jest 出现 `Cannot find module 'glob-parent'` 等缺件（半损坏的 node_modules）。
+
+**根因**：Cursor 沙箱拦截对 `node_modules/.pnpm` 的删除，pnpm 重装无法清虚拟仓，留下半装状态。
+
+**修复**：在沙箱外（批准后）执行一次 `pnpm install`，再按 §8.1 `pnpm rebuild bcrypt`。不要直接调用 `node_modules/.bin/eslint|jest` 绕过 pnpm——半损坏仓下它们同样会缺依赖。
+
+### 8.3 Node 版本不对
+
+**症状**：`pnpm` 直接报 `This version of pnpm requires at least Node.js v18.12, The current version ... v16`。
+
+**修复**：切到 Node 20（本机路径）：
+
+```bash
+export PATH="$HOME/.nvm/versions/node/v20.20.1/bin:$PATH"
+node -v   # v20.20.1
+```
+
+### 8.4 MongoDB 连 `localhost:27017` 偶发 ECONNREFUSED
+
+mongod 以 `--bind_ip=127.0.0.1` 只监听 IPv4，而 Node 18+ 解析 `localhost` 优先 IPv6 `::1`。连接串固定用 `mongodb://127.0.0.1:27017/...`，不用 `localhost`。

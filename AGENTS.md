@@ -151,7 +151,14 @@ pnpm run start:local
 - 失败处理：看第一个失败；环境问题先修复；不要跳过/删除测试；禁止用 --no-verify 绕过钩子
 - 禁止：用生产密钥；提交 `coverage/`、`dist/`；修改 CI 绕过测试
 
-### 6.4 PR 检查清单
+### 6.4 代码审查
+
+- 运行环境：Node 20+（见 `.nvmrc`）+ pnpm 9
+- 本地环境：20.20.1
+- 审查分支：从 `context.md` 中获取
+- 触发命令：`ocr review -B ./specs/<feature>/checklists/requirements.md`
+
+### 6.5 PR 检查清单
 
 - [ ] 代码通过测试
 - [ ] 代码通过 lint
@@ -160,7 +167,7 @@ pnpm run start:local
 - [ ] `context.md` 已更新
 - [ ] 没有提交敏感信息
 
-### 6.5 分支规范
+### 6.6 分支规范
 
 - 主分支：main 生产，develop 集成
 - 分支命名：`<type>/<issue-id>-<short-desc>`
@@ -173,7 +180,7 @@ pnpm run start:local
 - 禁止 force push 共享分支，禁止提交密钥/生成物
 - AI 代理：未经允许不创建远程分支、不合并、不删除远程分支
 
-### 6.6 提交规范
+### 6.7 提交规范
 
 - 提交信息使用 Conventional Commits，类型枚举以 `commitlint.config.cjs` 的 `promptTypes` 为准，具体类型请按[提交信息类型](./docs/architecture/engineering/commit-convention.md#type-类型)。
 - 关联需求编号，例如：`feat(auth): 实现登录接口 (#001)`。

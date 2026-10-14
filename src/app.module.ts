@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthModule } from './health/health.module';
+import { UserModule } from './modules/user/user.module';
 import { buildMongooseOptions } from './mongoose.config';
 
 @Module({
@@ -18,6 +19,7 @@ import { buildMongooseOptions } from './mongoose.config';
       useFactory: buildMongooseOptions,
     }),
     HealthModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService],

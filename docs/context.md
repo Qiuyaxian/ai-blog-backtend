@@ -2,59 +2,50 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-13 01:02（@架构组 + AI，会话：移除 posts 示例域，接入收敛为连接+健康检查）
+> 最后更新：2026-10-14 21:51（@架构组 + AI，会话：记录 bcrypt/pnpm 构建脚本排障，评审项 1/3/5 修正）
 
 ## 1. 当前状态
 
-- 当前阶段：NestJS 集成 MongoDB —— 基础接入完成（forRootAsync 连接 + 连接选项 + 健康检查 + 优雅关闭）；尚无任何业务集合
-- 主干健康：本会话实测 `tsc --noEmit` 退出 0、`pnpm lint` 退出 0、`pnpm test` 2 suites / 5 tests 通过；真实 mongod 启动 `/health/live`、`/health/ready` HTTP 验证通过
+- 当前阶段：用户模块（`specs/001-user-module`，T001–T035）已实现、验证并通过代码评审；ADR-002、用户模块设计文档与功能规格已转 Confirmed；首个真实业务集合 `users` 已落地
+- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 13 suites / 70 tests 通过、`pnpm test:e2e` 4 suites / 18 tests 通过（真实本地 mongod，测试库 `ai_blog_test`）
 - 阻塞项：无
 - 风险：
-  - 暂无业务 Schema/Service；[data-flows.md](./architecture/data-flows.md) 所有业务链路（文章/用户/评论/标签）都是规划，未落地代码。
-  - 健康检查端点实际路径为 `/health/live`、`/health/ready`（设计只要求分离，未定名）；部署侧探针需按此配置。
+  - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地后必须删除该桩（T035 已注明）。
+  - 访问日志只有请求级 requestId 关联，无跨服务 TraceContext 传播、无指标导出（宪法原则 V 延后项，见 §4 待决）。
   - 本地 mongod 为单节点非副本集，事务/change streams 不可验证（设计 §5.6）。
+  - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
 
-### NestJS 集成 MongoDB，支持数据存储
+### 用户模块 001（注册 / 本人资料 / 管理员管理）
 
-- 目标：NestJS 集成 MongoDB，支持数据存储
-- 分支：`20260921_cursor_mcp`
-- 负责人：架构组
-- 实现依据：[MongoDB + NestJS 集成设计文档](./architecture/design/mongodb-integration-design.md)、[ADR-001](./architecture/adr/ADR-001-mongodb.md)
-
-- [x] 安装依赖 `@nestjs/mongoose@9.2.2` + `mongoose@6.13.11`（+ `@nestjs/terminus@9.2.2`，设计 §3.1/§5.1，人工指令批准）
-- [x] `.env.local` 补 MongoDB 连接配置（设计 §3.2；三个 env 文件按 AGENTS.md §7 允许提交）
-- [x] 根模块 `MongooseModule.forRootAsync` + ConfigService 接入（设计 §3.3，选项抽到 `src/mongoose.config.ts`）
-- [ ] 首个业务 Schema 与 `forFeature` 注册（待真实业务域需求；设计 §2 的文章建模仅为文档示例）
-- [ ] Service 层 `@InjectModel` 注入与基础读写（待业务 Schema 落地后按设计 §3.5 实现）
-- [x] 连接池配置（设计 §3.6：max/min pool、超时、w:majority、生产 autoIndex:false）
-- [x] `/health/ready` 含 MongoDB ping、`/health/live` 不打 DB，ping 结果 5s 节流（设计 §5.1）
-- [x] 优雅关闭（设计 §5.4，main.ts `enableShutdownHooks`）
-- [x] 验证：`pnpm lint && pnpm test` 退出码 0；真实启动 `/health/ready` 200 连通验证通过
-
-完成定义：全部勾选完成 + 相关设计文档同 PR 更新 + 本地 `pnpm run start:local` 连通验证通过。
-
-后续候选（未开工）：首个真实业务域（文章/用户/标签等，以 data-flows 与产品需求为准）Schema+Service+Controller/DTO；E2E 测试；uat/prod 连接串补 TLS（设计 §4.2）。
+- 依据：[spec](../specs/001-user-module/spec.md)、[plan](../specs/001-user-module/plan.md)、[tasks](../specs/001-user-module/tasks.md)、[用户模块设计](./architecture/design/user-module-design.md)、[ADR-002](./architecture/adr/ADR-002-user-module.md)
+- 状态：代码与测试全部完成（US1–US3 + Foundational），handoff 为 `complete`；代码评审通过，ADR-002、用户模块设计文档与功能规格均为 Confirmed
+- 已交付：Schema（usernameLower/email 唯一、select:false、软删）、全局异常过滤器、访问日志拦截器、注册/本人/管理员 7 个接口、RolesGuard（认证-only + 管理员）、E2E 测试基建
+- 剩余：无；后续认证模块落地时删除 `x-test-user` 测试桩（见风险与延后项）
 
 ## 3. 近期完成（滚动窗口，只留最近 5 项）
 
+- 2026-10-14 用户模块全量实现并通过代码评审：T001–T035 按 TDD 落地；70 单测 + 18 E2E 全绿；全局过滤器/拦截器注册 main.ts；旧 app.e2e 补 NODE_ENV/MONGODB_URI；`test:e2e` 固定 --runInBand --forceExit；ADR-002、设计与 spec 转 Confirmed。
 - 2026-10-13 移除 posts 示例域：设计文档未要求任何业务集合，posts 为 AI 自选示例（YAGNI）；删除 src/posts 与 test/smoke 冒烟，接入收敛为 forRootAsync 连接 + health + shutdown hooks。
 - 2026-10-12 MongoDB 基础接入：forRootAsync 连接（池/超时/w:majority/生产 autoIndex 关）；health 模块 liveness/readiness 分离 + 5s 节流；shutdown hooks。
 - 2026-10-12 docs 去重与事实统一：删 monitoring.md 并入 observability.md；engineering/ 5 篇按真实配置重写；死链清零；统一 Node 20 / SLO 99.9% / env 自动加载口径。
 - 2026-10-12 ADR-001 确认：MongoDB 7 + @nestjs/mongoose 9 + Mongoose 6。
-- 2026-10-11 docs 文档体系初始化（架构 / 开发 / 运维 / 工具手册四类骨架）。
 
 ## 4. 阻塞与待决
 
-- 无阻塞，无待决。
+- 无阻塞。
+- 延后项（宪法原则 V，需建后续功能/issue，勿静默遗忘）：
+  1. 指标导出（Metrics）：本期只有结构化访问日志与 requestId，无 RED/速率/延迟指标。
+  2. 跨服务 TraceContext 传播：`x-request-id` 仅进程内关联，无下游透传与统一 Trace 设施。
   <!-- 分支名 20260921_cursor_mcp 虽不符合 §6.5 命名规范，人工确认保留，不改名。 -->
 
 ## 5. 关键决策（只放指针，正文在 ADR）
 
-| 编号                                             | 决策                          | 状态      | 日期       |
-| ------------------------------------------------ | ----------------------------- | --------- | ---------- |
-| [ADR-001](./architecture/adr/ADR-001-mongodb.md) | 采用 MongoDB 作为核心数据存储 | Confirmed | 2026-10-12 |
+| 编号                                                 | 决策                                   | 状态      | 日期                              |
+| ---------------------------------------------------- | -------------------------------------- | --------- | --------------------------------- |
+| [ADR-001](./architecture/adr/ADR-001-mongodb.md)     | 采用 MongoDB 作为核心数据存储          | Confirmed | 2026-10-12                        |
+| [ADR-002](./architecture/adr/ADR-002-user-module.md) | 用户集合 + isAdmin 布尔角色 + 软删基线 | Confirmed | 2026-10-13（2026-10-14 评审确认） |
 
 ## 6. 关键决策草稿（AI 追加，人工确认后移入 §5 并建 ADR）
 
@@ -74,8 +65,36 @@
 - 连接串用 `mongodb://127.0.0.1:27017/...`，不用 `localhost`：Node 18+ 优先解析 IPv6 `::1` 而 mongod 只绑 IPv4，会偶发 ECONNREFUSED。
 - 启动：`pnpm run start:local`；全量检查：`pnpm lint && pnpm test`。
 - 技术栈版本以 [AGENTS.md §2](../AGENTS.md) 与 [overview.md 技术栈表](./architecture/overview.md) 为准，本节不复制。
+- bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-14 bcrypt/pnpm 构建排障记录与评审修正（@架构组 + AI）
+
+- 修正 OCR 评审项：#1 `POST /users/delete` 返回 `{id}` 对齐契约；#3 schema `usernameLower` 去掉冗余 `index:true` 并补 `lowercase/trim`；#5 `pnpm-workspace.yaml` 构建脚本审批置有效值。
+- 澄清 #5：`allowBuilds` 是 pnpm 12 实际读取的键（非无效键），此前只是 pnpm 自动写入的占位串未批准；`bcrypt:true`、`@nestjs/core:false`，package.json 同字段保留兼容 pnpm 9。
+- 排障沉淀：pnpm ≥10 默认拦依赖 install 脚本 → `bcrypt_lib.node` 缺失；Cursor 沙箱拦 `.pnpm` 删除会令重装半损坏。已写入 [development.md §8](./development/development.md#8-故障排查) 与本文件 §8 备忘。
+- 验证：lint 0、单测 13 套件 71 项、E2E 4 套件 18 项全绿。
+
+### 2026-10-14 用户模块 001 文档状态流转（@架构组 + AI）
+
+- 背景：代码评审已完成，进入提交前文档收尾。
+- 状态流转：ADR-002、`docs/architecture/design/user-module-design.md` 由 Pending 转 Confirmed；`specs/001-user-module/spec.md` 由 Draft 转 Confirmed；架构索引与本文件同步。
+- 同步修正：用户模块设计文档补齐实际落地的 `delete-user.dto.ts`、`user-query.dto.ts`、`current-user.interface.ts`；依赖描述从“待评审/待新增”改为 T001 已人工评审并安装。
+- 当前交接：`.specify/superpowers-handoff.json` 为 `complete`；实现任务 T001–T035 全部勾选完成。
+
+### 2026-10-14 用户模块 001 全量 TDD 实现（@架构组 + AI）
+
+- 目标：按 `specs/001-user-module/` 的 spec/plan/tasks 落地注册、本人资料、管理员管理，全程 RED→GREEN→REFACTOR。
+- 改动：
+  - Schema/DTO：`User`（username/usernameLower/email/password/isAdmin/deletedAt，timestamps，两个唯一索引，敏感字段 select:false）；CreateUserDto（不含 isAdmin）、UpdateUserDto、SetAdminDto、DeleteUserDto、UserQueryDto（limit 缺省 20、封顶 50）、toUserResponse 脱敏。
+  - Service：create（归一化 + bcrypt cost 10 + E11000 按 keyPattern 转 USERNAME_EXISTS/EMAIL_EXISTS）、findById、updateEmail、list（`_id` 游标倒序，limit+1 判下一页）、setAdmin、softDelete（最后管理员保护 LAST_ADMIN_PROTECTED，全量查询带 deletedAt:null）。
+  - Controller：仅 GET/POST；POST 写参数全走 body；`POST /users` 公开；`GET/POST /users/me` 认证-only；管理员路由 `@Roles('admin')`。
+  - 横切：`HttpExceptionFilter`（VALIDATION_ERROR/INVALID_ID/业务 code 透传/500 不泄内部）与 `AccessLogInterceptor`（crypto.randomUUID requestId、结构化 JSON、不打 body）注册到 main.ts。
+  - 测试：`test/helpers/e2e-app.ts` 自举 + `x-test-user` 桩 Guard；修复旧 app.e2e（补 NODE_ENV/MONGODB_URI、超时与关闭）；`package.json` 的 test:e2e 固定 `--runInBand --forceExit`。
+- 结果（证据）：`pnpm lint` 退出 0；`pnpm test` 13 suites / 70 tests 全绿；`pnpm test:e2e` 4 suites / 18 tests 全绿（真实 mongod，测试库 ai_blog_test）。
+- 偏差同步：设计 §7 原文“createdAt 倒序”改为 `_id` 游标倒序（ObjectId 内嵌时间，等价且与 tasks 一致），并补 limit 缺省 20。
+- 后续：登录/令牌落地后删除 x-test-user 桩；指标导出与跨服务 Trace 延后（见 §4）；ADR-002 与设计待人工评审转 Confirmed。
 
 ### 2026-10-13 移除 posts 示例域（@架构组 + AI）
 

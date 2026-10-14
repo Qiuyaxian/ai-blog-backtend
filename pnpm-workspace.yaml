@@ -1,0 +1,6 @@
+# 依赖构建脚本审批（pnpm 12 读 allowBuilds；pnpm 9 读 package.json 的 pnpm.onlyBuiltDependencies，两处保留以兼容）。
+# bcrypt：允许执行 install 脚本下载/编译原生绑定；
+# @nestjs/core：其 install 脚本仅打印捐赠提示，禁止。
+allowBuilds:
+  bcrypt: true
+  '@nestjs/core': false

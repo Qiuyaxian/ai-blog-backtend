@@ -1,8 +1,23 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AccessLogInterceptor } from './common/interceptors/access-log.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // 全局入参校验：白名单剥离未声明字段、拒绝多余字段、payload 按 DTO 类型转型
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  // 全局异常归一：业务 code 透传、校验错误 VALIDATION_ERROR、非法 ID INVALID_ID
+  app.useGlobalFilters(new HttpExceptionFilter());
+  // 全局访问日志：每请求一条结构化 JSON，requestId 挂请求对象与 x-request-id 响应头
+  app.useGlobalInterceptors(new AccessLogInterceptor());
   app.enableShutdownHooks(); // 启用关闭钩子，确保 Mongoose 连接优雅释放（设计 §5.4）
   await app.listen(3000);
 }

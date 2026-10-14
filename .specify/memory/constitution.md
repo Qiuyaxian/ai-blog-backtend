@@ -1,24 +1,26 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (unfilled scaffold) → 1.0.0
-Bump rationale: 首次将占位模板填充为可执行宪法，按语义化版本定为初始正式版 1.0.0。
+Version change: 1.0.0 → 1.1.0
+Bump rationale: 新增「Spec 状态标记规范」章节（统一 ✅/⬜/❌/🚫/⚠️ 图标约定；
+Markdown checkbox 保留为 speckit 技能解析进度的机器状态，图标紧随其后供人读），
+为既有治理约束的实质性扩充，按语义化版本升 MINOR。
 
-Modified principles (占位 → 正式原则):
-- [PRINCIPLE_1_NAME] → I. TypeScript-First（类型即契约）
-- [PRINCIPLE_2_NAME] → II. NestJS 模块边界与分层
-- [PRINCIPLE_3_NAME] → III. Test-First（NON-NEGOTIABLE，不可协商）
-- [PRINCIPLE_4_NAME] → IV. 安全与合规默认开启
-- [PRINCIPLE_5_NAME] → V. 可观测、可灰度、可回滚
-
+Modified principles: 无。
 Added sections:
-- 技术栈与工程约束（原 [SECTION_2_NAME]）
-- 开发工作流与质量门禁（原 [SECTION_3_NAME]）
-- Governance（填充治理规则：修订程序、语义化版本、合规审查）
+- Spec 状态标记规范（specs/ 产物状态图标与 Markdown checkbox 共存约定）
 
-Removed sections: 无（模板注释性示例已随占位符替换移除）。
+Removed sections: 无。
 
-Deferred TODOs: 无。全部占位符已填充；RATIFICATION_DATE 采用首次批准日 2026-10-13。
+历史变更:
+- (unfilled scaffold) → 1.0.0：首次将占位模板填充为可执行宪法。
+  Modified principles (占位 → 正式原则):
+  - [PRINCIPLE_1_NAME] → I. TypeScript-First（类型即契约）
+  - [PRINCIPLE_2_NAME] → II. NestJS 模块边界与分层
+  - [PRINCIPLE_3_NAME] → III. Test-First（NON-NEGOTIABLE，不可协商）
+  - [PRINCIPLE_4_NAME] → IV. 安全与合规默认开启
+  - [PRINCIPLE_5_NAME] → V. 可观测、可灰度、可回滚
+  Added sections: 技术栈与工程约束、开发工作流与质量门禁、Governance。
 -->
 
 # ai-blog-backtend Constitution
@@ -131,6 +133,33 @@ TypeScript 是一等公民，类型是模块间、前后端间的契约，而非
 - AI 代理约束：未经允许 MUST NOT 创建远程分支、合并或删除远程分支；
   MUST NOT 执行破坏性命令（`rm -rf`、`DROP DATABASE` 等）。
 
+## Spec 状态标记规范
+
+`specs/` 下所有产物（spec.md / plan.md / tasks.md / checklists 等）的状态标记
+MUST 统一使用以下图标，使完成状态在源码中直接可见：
+
+| 图标 | 含义        |
+| ---- | ----------- |
+| ✅   | 已完成      |
+| ⬜   | 待办        |
+| ❌   | 错误 / 失败 |
+| 🚫   | 禁止        |
+| ⚠️   | 已废弃      |
+
+- 任务/检查项 MUST 以 Markdown checkbox 起头、图标紧随其后（speckit 技能按
+  `- [ ]` / `- [x]` 解析进度，checkbox 是唯一机器可读状态，禁止删除）：
+  待办 `- [ ] ⬜ T002 ...`；完成 `- [x] ✅ T001 ...`；
+  错误/失败用 ❌、禁止用 🚫、废弃用 ⚠️ 替换图标位。
+- 禁止用文字（如“完成/待办”）或其他表情替代表中的图标；同一状态 MUST 全仓一致。
+- 示例：
+
+  ```text
+  - [x] ✅ T001 已完成事项
+  - [ ] ⬜ T002 待办事项
+  - [x] 🚫 T003 禁止做法（保留勾选与说明）
+  - [x] ⚠️ T004 已废弃事项（保留勾选与说明）
+  ```
+
 ## Governance
 
 - 本宪法是项目工程治理的最高准则，与 AGENTS.md、`docs/` 下规范冲突时，
@@ -146,4 +175,4 @@ TypeScript 是一等公民，类型是模块间、前后端间的契约，而非
 - 运行时开发指导见 AGENTS.md §4 加载规则；本宪法只规定不可协商的治理
   约束，具体操作细则路由到对应文档，避免重复维护。
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-13
+**Version**: 1.1.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-14

@@ -19,6 +19,7 @@
 - 禁止绕过 Guard / Pipe / Interceptor，禁止用 `// @ts-ignore`、`any` 掩盖真实类型问题。
 - 禁止提交密钥；缓存统一封装，禁止 Controller 直接操作 Redis。
 - API 版本化，响应新增字段必须可选；数据库迁移不直接删旧字段。
+- HTTP 方法只允许 GET 与 POST：查询用 GET，所有写操作（创建/更新/删除/动作）一律 POST，禁止使用 PUT / PATCH / DELETE；POST 参数放 body，不用 `:id` 路径参数。
 
 ## 1. 编码风格（默认必读）
 
@@ -104,14 +105,16 @@ export class CreateUserDto {
 }
 ```
 
-- 查询参数用单独的 Query DTO；路径参数用 `@IsMongoId()` / `ParseIntPipe` 等内建管道校验。
+- 查询参数用单独的 Query DTO；GET 路径参数用 `@IsMongoId()` / `ParseIntPipe` 等内建管道校验（POST 写操作不用路径参数，标识放 body）。
 - 禁止用 `any` 或裸对象接收请求体。
 
 ### 2.4 Controller 与路由
 
 - Controller 只做：接收参数（DTO）→ 调 Service → 返回结果；不写条件分支业务逻辑、不直接访问 DB。
-- 路由保持 RESTful，用复数资源名（`/users`、`/users/:id/posts`），动作通过 HTTP 动词语义表达。
-- 用状态码装饰器明确语义：`@Post()` 默认 201，`@HttpCode(204)` 用于无返回的删除/更新。
+- **HTTP 方法只允许 GET 与 POST**：查询用 GET，所有写操作（创建/更新/删除/动作）一律 POST，禁止使用 PUT / PATCH / DELETE。
+- **POST 写操作参数优先放 body**：资源标识与动作参数作为 body 字段传递（如 `{ id, isAdmin }`），不使用 `@Param()` 路径参数；仅 GET 允许使用路径/查询参数。
+- 路由用复数资源名（`/users`、`/users/posts`）；非 CRUD 动作用路径子资源表达（如 `POST /users/admin`、`POST /users/delete`），不依赖 HTTP 动词语义。
+- 用状态码装饰器明确语义：`@Post()` 创建返回 201；无返回的写动作用 `@HttpCode(204)`；有返回的更新/动作返回 200。
 - 统一通过 `setGlobalPrefix` 和版本前缀管理 API 路径；响应结构、分页格式由全局 Interceptor 统一。
 
 ```ts
@@ -128,6 +131,13 @@ export class UsersController {
   @HttpCode(201)
   create(@Body() dto: CreateUserDto) {
     return this.userService.create(dto);
+  }
+
+  // 更新/动作也用 POST，参数走 body，不用路径参数
+  @Post('admin')
+  @HttpCode(200)
+  setAdmin(@Body() dto: SetAdminDto) {
+    return this.userService.setAdmin(dto);
   }
 }
 ```
@@ -159,3 +169,6 @@ export class UsersController {
 ## 更新记录
 
 > 只记重要变更，最新在上。完整历史见 Git。
+
+- 2026-10-13：§0 与 §2.4 新增硬约束——HTTP 方法只允许 GET/POST，写操作一律 POST（禁 PUT/PATCH/DELETE），动作由路径语义表达。
+- 2026-10-13：§2.3/§2.4 补充——POST 写操作参数优先放 body，不用 `:id` 路径参数，资源标识作为 body 字段；仅 GET 用路径/查询参数。
