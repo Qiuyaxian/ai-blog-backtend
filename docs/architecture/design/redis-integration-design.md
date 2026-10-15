@@ -1,9 +1,9 @@
 # Redis + NestJS 集成设计文档
 
-> 状态：待确认（Pending）
-> 日期：2026-10-14（2026-10-15 实现完成，Draft → Pending 待评审）
+> 状态：已确认（Confirmed）
+> 日期：2026-10-14（2026-10-15 实现完成，Draft → Pending；同日 OCR 评审通过并修复意见后 → Confirmed）
 >
-> 状态枚举遵循 `AGENTS.md` §9：Draft → Pending → Confirmed。本文档是 [ADR-003](../adr/ADR-003-redis-cache.md)（Pending）的实现展开；评审通过后转 Confirmed。
+> 状态枚举遵循 `AGENTS.md` §9：Draft → Pending → Confirmed。本文档是 [ADR-003](../adr/ADR-003-redis-cache.md)（Confirmed）的实现展开。
 
 ## 1. 概述
 
@@ -201,4 +201,5 @@ this.health.check([
 
 > 只记重要变更，最新在上。完整历史见 Git。
 
+- 2026-10-15 @架构组 + AI：实现与全量验证完成，OCR 评审 4 条意见修复（退避描述对齐为线性 `times*100`、补 CacheService 键守卫、修正健康检查注释、加固工厂测试 mock），Pending → Confirmed。
 - 2026-10-14 @架构组 + AI：初始版本（Draft），随 002 plan 阶段产出，待评审。

@@ -56,8 +56,8 @@ specs/002-redis-integration/
 
 ```text
 docs/architecture/
-├── adr/ADR-003-redis-cache.md          # 缓存层基线决策（Draft）
-└── design/redis-integration-design.md  # 集成实现设计（Draft）
+├── adr/ADR-003-redis-cache.md          # 缓存层基线决策（Confirmed）
+└── design/redis-integration-design.md  # 集成实现设计（Confirmed）
 ```
 
 ### 源码

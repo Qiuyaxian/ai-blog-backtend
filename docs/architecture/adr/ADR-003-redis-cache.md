@@ -2,9 +2,9 @@
 
 ## 状态
 
-待确认（Pending）
+已确认（Confirmed）
 
-> 状态枚举遵循 `AGENTS.md` §9：草稿 Draft → 待确认 Pending → 已确认 Confirmed。2026-10-14 随 plan 阶段产出为 Draft；2026-10-15 实现与全量验证完成，转 Pending 待人工评审。
+> 状态枚举遵循 `AGENTS.md` §9：草稿 Draft → 待确认 Pending → 已确认 Confirmed。2026-10-14 随 plan 阶段产出为 Draft；2026-10-15 实现与全量验证完成转 Pending；同日经 OCR 评审（4 条意见全部修复）后转 Confirmed。
 
 ## 日期
 
@@ -83,4 +83,5 @@
 
 > 只记重要变更，最新在上。完整历史见 Git。
 
+- 2026-10-15 @架构组 + AI：实现、全量验证与 OCR 评审完成（4 条意见已修复），Pending → Confirmed。
 - 2026-10-14 @架构组 + AI：初始版本（Draft），随 002 plan 阶段产出，待评审。

@@ -2,15 +2,15 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-15 01:20（@架构组 + AI，会话：specs/002-redis-integration 全量 TDD 实现 T001–T018，待评审）
+> 最后更新：2026-10-15 17:15（@架构组 + AI，会话：002 OCR 评审修复、提交推送、文档转 Confirmed）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`）已实现、验证、评审通过并 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`，T001–T018）已实现并全量验证，ADR-003 与设计文档为 Pending 待人工评审；首个真实基础设施依赖 ioredis@5.11.1 已由人工评审安装
-- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 17 suites / 99 tests 通过、`pnpm test:e2e` 5 suites / 20 tests 通过（真实本地 mongod + redis 4.0.11，测试库 `ai_blog_test`）
+- 当前阶段：用户模块（`specs/001-user-module`）已实现、验证、评审通过并 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`，T001–T021）已实现、全量验证并通过 OCR 评审（4 条意见已修复），ADR-003、集成设计与功能规格均转 Confirmed，handoff 为 complete；首个真实基础设施依赖 ioredis@5.11.1 已由人工评审安装
+- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 17 suites / 103 tests 通过、`pnpm test:e2e` 5 suites / 20 tests 通过（真实本地 mongod + redis 4.0.11，测试库 `ai_blog_test`）
 - 阻塞项：无
 - 风险：
-  - Redis 接入尚未经人工代码评审：ADR-003/设计为 Pending，评审通过后转 Confirmed；E2E 现依赖本地 redis-server 在运行。
+  - E2E 依赖本地 redis-server 在运行；沙箱内 loopback 被拦时需在沙箱外执行 `pnpm test:e2e`。
   - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地后必须删除该桩（T035 已注明）。
   - 访问日志只有请求级 requestId 关联，无跨服务 TraceContext 传播、无指标导出（宪法原则 V 延后项，见 §4 待决）。
   - 本地 mongod 为单节点非副本集，事务/change streams 不可验证（设计 §5.6）。
@@ -21,9 +21,9 @@
 ### Redis 缓存基础设施 002（统一缓存服务 / 健康检查 / 异常可诊断）
 
 - 依据：[spec](../specs/002-redis-integration/spec.md)、[plan](../specs/002-redis-integration/plan.md)、[tasks](../specs/002-redis-integration/tasks.md)、[集成设计](./architecture/design/redis-integration-design.md)、[ADR-003](./architecture/adr/ADR-003-redis-cache.md)
-- 状态：T001–T018 全部完成（TDD），T019 全量门禁绿；T021 待跑 verification-before-completion 后将 handoff 置 complete；ADR-003/设计为 Pending，等人工评审（OCR 基线 `specs/002-redis-integration/checklists/requirements.md`）
-- 已交付：ioredis 单例全局模块（不导出 client）、`buildRedisOptions`（lazyConnect/离线队列关闭/退避重连/keyPrefix）、`CacheService`（强制正整数 TTL、JSON 往返、未命中 null、del 幂等）、自定义 `RedisHealthIndicator` 并入 `/health/ready`（5s 节流、live 不触 Redis）、启动 ping fail-fast、error 日志脱敏、Redis 健康 E2E
-- 剩余：人工代码评审 + 文档转 Confirmed；T020 完成后 T021 收尾
+- 状态：T001–T021 全部完成（TDD），全量门禁绿，handoff 为 `complete`；OCR 评审通过（4 条意见已修复），ADR-003/集成设计/功能规格均为 Confirmed；已提交 `cbdad4a` 并推送分支 `feat/user_redis_init`
+- 已交付：ioredis 单例全局模块（不导出 client）、`buildRedisOptions`（lazyConnect/离线队列关闭/线性退避重连/keyPrefix）、`CacheService`（强制正整数 TTL、JSON 往返、未命中 null、del 幂等、键非空守卫）、自定义 `RedisHealthIndicator` 并入 `/health/ready`（5s 节流、live 不触 Redis）、启动 ping fail-fast、error 日志脱敏、Redis 健康 E2E
+- 剩余：开 PR 走合并评审；后续缓存业务接入
 
 ### 用户模块 001（注册 / 本人资料 / 管理员管理）
 
@@ -34,7 +34,7 @@
 
 ## 3. 近期完成（滚动窗口，只留最近 5 项）
 
-- 2026-10-15 Redis 缓存基础设施全量 TDD 实现：T001–T018；ioredis 单例模块（client 不导出）、强制 TTL 的 CacheService、自定义健康指示器并入 /health/ready、启动 ping fail-fast、error 日志脱敏；新增 E2E `test/redis-health.e2e-spec.ts` 与 `test/setup-env.ts`（修复 E2E 未加载 .env.local）；真实 Redis 验证断线命令即败、重启后同实例自动重连、日志无密码；lint 0、单测 17 套件 99 项、E2E 5 套件 20 项全绿；ADR-003 与设计转 Pending 待评审。
+- 2026-10-15 Redis 缓存基础设施全量 TDD 实现并评审通过：T001–T021；ioredis 单例模块（client 不导出）、强制 TTL 的 CacheService（含键非空守卫）、自定义健康指示器并入 /health/ready、启动 ping fail-fast、error 日志脱敏；新增 E2E `test/redis-health.e2e-spec.ts` 与 `test/setup-env.ts`（修复 E2E 未加载 .env.local）；真实 Redis 验证断线命令即败、重启后同实例自动重连、日志无密码；OCR 评审 4 条意见修复（退避文档对齐线性 times\*100）；lint 0、单测 17 套件 103 项、E2E 5 套件 20 项全绿；ADR-003、设计与 spec 转 Confirmed；提交 `cbdad4a` 推送 `feat/user_redis_init`。
 - 2026-10-14 用户模块全量实现并通过代码评审：T001–T035 按 TDD 落地；70 单测 + 18 E2E 全绿；全局过滤器/拦截器注册 main.ts；旧 app.e2e 补 NODE_ENV/MONGODB_URI；`test:e2e` 固定 --runInBand --forceExit；ADR-002、设计与 spec 转 Confirmed。
 - 2026-10-13 移除 posts 示例域：设计文档未要求任何业务集合，posts 为 AI 自选示例（YAGNI）；删除 src/posts 与 test/smoke 冒烟，接入收敛为 forRootAsync 连接 + health + shutdown hooks。
 - 2026-10-12 MongoDB 基础接入：forRootAsync 连接（池/超时/w:majority/生产 autoIndex 关）；health 模块 liveness/readiness 分离 + 5s 节流；shutdown hooks。
@@ -50,10 +50,11 @@
 
 ## 5. 关键决策（只放指针，正文在 ADR）
 
-| 编号                                                 | 决策                                   | 状态      | 日期                              |
-| ---------------------------------------------------- | -------------------------------------- | --------- | --------------------------------- |
-| [ADR-001](./architecture/adr/ADR-001-mongodb.md)     | 采用 MongoDB 作为核心数据存储          | Confirmed | 2026-10-12                        |
-| [ADR-002](./architecture/adr/ADR-002-user-module.md) | 用户集合 + isAdmin 布尔角色 + 软删基线 | Confirmed | 2026-10-13（2026-10-14 评审确认） |
+| 编号                                                 | 决策                                                                          | 状态      | 日期                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------- | --------- | -------------------------------------- |
+| [ADR-001](./architecture/adr/ADR-001-mongodb.md)     | 采用 MongoDB 作为核心数据存储                                                 | Confirmed | 2026-10-12                             |
+| [ADR-002](./architecture/adr/ADR-002-user-module.md) | 用户集合 + isAdmin 布尔角色 + 软删基线                                        | Confirmed | 2026-10-13（2026-10-14 评审确认）      |
+| [ADR-003](./architecture/adr/ADR-003-redis-cache.md) | Redis 作为统一缓存层及接入基线（ioredis 单例、强制 TTL、fail-fast、健康检查） | Confirmed | 2026-10-14（2026-10-15 实现+评审确认） |
 
 ## 6. 关键决策草稿（AI 追加，人工确认后移入 §5 并建 ADR）
 
@@ -76,6 +77,14 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-15 002 OCR 评审、修复、提交与文档确认（@架构组 + AI）
+
+- OCR 委托模式评审（`ocr review -B specs/002-redis-integration/checklists/requirements.md`，CLI 无 LLM endpoint，走 delegate 由本代理评审）：17/17 代码文件覆盖，无 high/critical，4 条 low。
+- 修复：① 退避描述对齐实现（代码为自定义线性 `min(times*100,2000)`，ioredis 默认也是线性 `times*50`，初稿"指数退避"写错）——改代码注释、research R4/R1、设计、ADR-003、tasks，保留实现不变（人工拍板"按文档对齐现有线性退避"）；②`CacheService` 加键非空守卫（TDD，4 个新用例）；③ 修正 readiness 过时注释；④ 工厂测试 mock 改为每次构造新建 jest.fn，消除共享串味。
+- 状态流转：评审通过后 ADR-003、`redis-integration-design.md`、`specs/002-redis-integration/spec.md` 统一转 Confirmed，plan.md 内括注与架构索引同步。
+- 提交与推送：`cbdad4a` `feat(cache): 集成 Redis 统一缓存基础设施 (#002)`（32 文件，+1878/−26），husky 钩子通过；分支 `feat/user_redis_init` 推送并设置上游（沙箱拦网络，非沙箱推送成功）。
+- 验证：lint 0、tsc 0、单测 17 套件 103 项、E2E 5 套件 20 项全绿。
 
 ### 2026-10-15 Redis 缓存基础设施 002 全量 TDD 实现（@架构组 + AI）
 
