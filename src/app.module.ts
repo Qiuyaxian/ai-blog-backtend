@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CacheModule } from './common/cache/cache.module';
 import { HealthModule } from './health/health.module';
 import { UserModule } from './modules/user/user.module';
 import { buildMongooseOptions } from './mongoose.config';
@@ -18,6 +19,7 @@ import { buildMongooseOptions } from './mongoose.config';
       inject: [ConfigService], // ConfigModule 已 isGlobal，无需再 imports: [ConfigModule]
       useFactory: buildMongooseOptions,
     }),
+    CacheModule,
     HealthModule,
     UserModule,
   ],

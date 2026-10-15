@@ -1,11 +1,11 @@
 {
-  "feature_directory": "specs/001-user-module",
-  "source_of_truth": "specs/001-user-module",
-  "tasks_file": "specs/001-user-module/tasks.md",
+  "feature_directory": "specs/002-redis-integration",
+  "source_of_truth": "specs/002-redis-integration",
+  "tasks_file": "specs/002-redis-integration/tasks.md",
   "constitution": ".specify/memory/constitution.md",
   "status": "complete",
-  "claimed_by": "cursor-agent:spec-kit-superpowers#001-user-module",
-  "claimed_at": "2026-10-14T00:49:00+08:00",
+  "claimed_by": "cursor-agent:spec-kit-superpowers#002-redis-integration",
+  "claimed_at": "2026-10-15T00:49:00+08:00",
   "reason": "",
-  "last_updated": "2026-10-14T15:21:00+08:00"
+  "last_updated": "2026-10-15T16:35:00+08:00"
 }

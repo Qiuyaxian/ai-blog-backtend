@@ -2,20 +2,28 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-14 21:51（@架构组 + AI，会话：记录 bcrypt/pnpm 构建脚本排障，评审项 1/3/5 修正）
+> 最后更新：2026-10-15 01:20（@架构组 + AI，会话：specs/002-redis-integration 全量 TDD 实现 T001–T018，待评审）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`，T001–T035）已实现、验证并通过代码评审；ADR-002、用户模块设计文档与功能规格已转 Confirmed；首个真实业务集合 `users` 已落地
-- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 13 suites / 70 tests 通过、`pnpm test:e2e` 4 suites / 18 tests 通过（真实本地 mongod，测试库 `ai_blog_test`）
+- 当前阶段：用户模块（`specs/001-user-module`）已实现、验证、评审通过并 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`，T001–T018）已实现并全量验证，ADR-003 与设计文档为 Pending 待人工评审；首个真实基础设施依赖 ioredis@5.11.1 已由人工评审安装
+- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 17 suites / 99 tests 通过、`pnpm test:e2e` 5 suites / 20 tests 通过（真实本地 mongod + redis 4.0.11，测试库 `ai_blog_test`）
 - 阻塞项：无
 - 风险：
+  - Redis 接入尚未经人工代码评审：ADR-003/设计为 Pending，评审通过后转 Confirmed；E2E 现依赖本地 redis-server 在运行。
   - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地后必须删除该桩（T035 已注明）。
   - 访问日志只有请求级 requestId 关联，无跨服务 TraceContext 传播、无指标导出（宪法原则 V 延后项，见 §4 待决）。
   - 本地 mongod 为单节点非副本集，事务/change streams 不可验证（设计 §5.6）。
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
+
+### Redis 缓存基础设施 002（统一缓存服务 / 健康检查 / 异常可诊断）
+
+- 依据：[spec](../specs/002-redis-integration/spec.md)、[plan](../specs/002-redis-integration/plan.md)、[tasks](../specs/002-redis-integration/tasks.md)、[集成设计](./architecture/design/redis-integration-design.md)、[ADR-003](./architecture/adr/ADR-003-redis-cache.md)
+- 状态：T001–T018 全部完成（TDD），T019 全量门禁绿；T021 待跑 verification-before-completion 后将 handoff 置 complete；ADR-003/设计为 Pending，等人工评审（OCR 基线 `specs/002-redis-integration/checklists/requirements.md`）
+- 已交付：ioredis 单例全局模块（不导出 client）、`buildRedisOptions`（lazyConnect/离线队列关闭/退避重连/keyPrefix）、`CacheService`（强制正整数 TTL、JSON 往返、未命中 null、del 幂等）、自定义 `RedisHealthIndicator` 并入 `/health/ready`（5s 节流、live 不触 Redis）、启动 ping fail-fast、error 日志脱敏、Redis 健康 E2E
+- 剩余：人工代码评审 + 文档转 Confirmed；T020 完成后 T021 收尾
 
 ### 用户模块 001（注册 / 本人资料 / 管理员管理）
 
@@ -26,11 +34,11 @@
 
 ## 3. 近期完成（滚动窗口，只留最近 5 项）
 
+- 2026-10-15 Redis 缓存基础设施全量 TDD 实现：T001–T018；ioredis 单例模块（client 不导出）、强制 TTL 的 CacheService、自定义健康指示器并入 /health/ready、启动 ping fail-fast、error 日志脱敏；新增 E2E `test/redis-health.e2e-spec.ts` 与 `test/setup-env.ts`（修复 E2E 未加载 .env.local）；真实 Redis 验证断线命令即败、重启后同实例自动重连、日志无密码；lint 0、单测 17 套件 99 项、E2E 5 套件 20 项全绿；ADR-003 与设计转 Pending 待评审。
 - 2026-10-14 用户模块全量实现并通过代码评审：T001–T035 按 TDD 落地；70 单测 + 18 E2E 全绿；全局过滤器/拦截器注册 main.ts；旧 app.e2e 补 NODE_ENV/MONGODB_URI；`test:e2e` 固定 --runInBand --forceExit；ADR-002、设计与 spec 转 Confirmed。
 - 2026-10-13 移除 posts 示例域：设计文档未要求任何业务集合，posts 为 AI 自选示例（YAGNI）；删除 src/posts 与 test/smoke 冒烟，接入收敛为 forRootAsync 连接 + health + shutdown hooks。
 - 2026-10-12 MongoDB 基础接入：forRootAsync 连接（池/超时/w:majority/生产 autoIndex 关）；health 模块 liveness/readiness 分离 + 5s 节流；shutdown hooks。
 - 2026-10-12 docs 去重与事实统一：删 monitoring.md 并入 observability.md；engineering/ 5 篇按真实配置重写；死链清零；统一 Node 20 / SLO 99.9% / env 自动加载口径。
-- 2026-10-12 ADR-001 确认：MongoDB 7 + @nestjs/mongoose 9 + Mongoose 6。
 
 ## 4. 阻塞与待决
 
@@ -68,6 +76,18 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-15 Redis 缓存基础设施 002 全量 TDD 实现（@架构组 + AI）
+
+- 目标：按 `specs/002-redis-integration/` 的 spec/plan/tasks 落地统一缓存服务、健康检查、异常可诊断，全程 RED→GREEN→REFACTOR。
+- 改动：
+  - `src/common/cache/`：`cache.constants.ts`（REDIS_CLIENT token）、`redis.config.ts`（host 必填无默认、keyPrefix 环境隔离、lazyConnect/enableOfflineQueue:false/退避重连）、`cache.module.ts`（全局单例、`createRedisClient` 工厂 connect+ping fail-fast、error 日志脱敏、quit 优雅关闭；仅导出 CacheService/RedisHealthIndicator）、`cache.service.ts`（正整数 TTL 强校验、EX、JSON 往返、未命中 null、del 幂等）、`redis.health.ts`（自定义 HealthIndicator，ping 失败抛 HealthCheckError）。
+  - `src/health/health.controller.ts`：ready 检查数组追加 redis 指示器，沿用 5s 节流与失败不缓存；live 不触 Redis。
+  - 测试：config/service/health indicator/controller/工厂 fail-fast 与日志脱敏单测（ioredis 全 mock）；`test/redis-health.e2e-spec.ts`（真实 Redis：ready 200 含 redis+mongodb，live 不依赖 Redis）；新增 `test/setup-env.ts` 并在 `test/jest-e2e.json` 注册 setupFiles——实现期发现 E2E 未设 NODE_ENV 导致 `.env.local` 不加载（CacheModule fail-fast 暴露了旧 Mongoose 靠默认 URI 的侥幸），旧 app.e2e 同步修复。
+- 结果（证据）：`pnpm lint` 0；`pnpm test` 17 suites / 99 tests；`pnpm test:e2e` 5 suites / 20 tests，均退出 0。
+- T018 手工验证（一次性脚本，已删除）：Redis 停服时工厂 reject 且打印 `ECONNREFUSED`（不含密码）；运行期停 Redis 后命令立即 reject（`Stream isn't writeable and enableOfflineQueue options is false`）；重启 Redis 后同实例自动重连成功（应用未重启）；物理键为 `local:probe:k1` 且 TTL=30、1 秒键真实到期、del 幂等。
+- 偏差：fail-fast 工厂抽为可单测的导出函数 `createRedisClient`（任务原文为内联工厂，行为一致）；setup-env 基建已回写设计 §8。
+- 后续：人工 OCR 评审（基线 `specs/002-redis-integration/checklists/requirements.md`）通过后 ADR-003/设计转 Confirmed；T021 verification-before-completion 后 handoff 置 complete。
 
 ### 2026-10-14 bcrypt/pnpm 构建排障记录与评审修正（@架构组 + AI）
 

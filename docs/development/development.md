@@ -45,6 +45,16 @@ docker compose up -d mongo redis
 
 无需复制 env 文件：应用按 `NODE_ENV` 自动加载 `.env.local` / `.env.uat` / `.env.production`（默认 local，见 `src/app.module.ts`）。首次启动只需确认 `.env.local` 中的 MongoDB / Redis 连接配置。
 
+Redis 相关变量（详见 `docs/architecture/design/redis-integration-design.md` §3.1）：
+
+| 变量               | 说明                                              | local 示例  |
+| ------------------ | ------------------------------------------------- | ----------- |
+| `REDIS_HOST`       | Redis 主机，必填，缺失则启动报错（不给默认地址）  | `127.0.0.1` |
+| `REDIS_PORT`       | 端口                                              | `6379`      |
+| `REDIS_PASSWORD`   | 密码；本地留空，uat/prod 由运维提供，不入库       | （空）      |
+| `REDIS_DB`         | 逻辑库编号                                        | `0`         |
+| `REDIS_KEY_PREFIX` | 键的环境前缀，缺省取 `${NODE_ENV}:`，用于环境隔离 | `local:`    |
+
 ## 4. 启动开发服务
 
 ```bash
