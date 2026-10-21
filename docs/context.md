@@ -2,7 +2,7 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-15 17:15（@架构组 + AI，会话：002 OCR 评审修复、提交推送、文档转 Confirmed）
+> 最后更新：2026-10-22 01:50（@架构组 + AI，会话：接入 Harness 多角色 Agent 与自进化机制，纯文档/配置 [no-test]）
 
 ## 1. 当前状态
 
@@ -17,6 +17,13 @@
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
+
+### Harness 多 Agent 协作层（文档/配置，无生产代码）
+
+- 依据：[Harness 手册](./harness/README.md)、[AGENTS.md §7.4](../AGENTS.md)、[EVO-20261022001](../.specify/memory/evolution/EVO-20261022001-接入harness多角色与进化机制.md)
+- 状态：已落地待人工评审（分支 `feat/harness_agents_sdd`，未提交）；`agents/` 四角色（arch/dev/test/devops，纯后端无前端角色）、`commands.md`、`workflows/development-workflow.md`、进化机制 + 模板 + 首条 EVO、`.cursor/rules/harness-agents.mdc`、AGENTS.md §4.1 启动流程与 §7.4、docs/harness 手册
+- 关键决策：不照搬 harness-sdd 模板——Mongoose 替换 TypeORM 假设、禁止 `/speckit.implement`、规则归并到既有 docs 权威源而非新建重复规范
+- 剩余：人工评审；评审通过后决定是否提交/开 PR
 
 ### Redis 缓存基础设施 002（统一缓存服务 / 健康检查 / 异常可诊断）
 
@@ -58,7 +65,7 @@
 
 ## 6. 关键决策草稿（AI 追加，人工确认后移入 §5 并建 ADR）
 
-- 暂无。
+- 2026-10-22 接入 Harness 多角色协作层：四角色（arch/dev/test/devops）+ `/role`、`/evolve` 两个角色层指令 + 进化记录机制。是否作为长期治理基线待人工确认；确认后可考虑补 ADR-004（文档治理/开发流程类）。详见 EVO-20261022001。
 
 ## 7. 已知问题
 
@@ -77,6 +84,55 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-22 Harness 文档去重瘦身（@架构组 + AI）
+
+- 跨文件重复分析：角色表四处（AGENTS §7.4.1、harness README §2、agents/README、prompts）各有不同用途全保留；evolve 规则三处复述（AGENTS §7.4.2、harness README §4、evolution-mechanism）以后者为唯一权威，前两处压缩为指针；handoff 规则三处复述（AGENTS §7.6、spec-kit-superpowers.mdc、§7.2/§7.3）保留 AGENTS 唯一完整版。
+- AGENTS.md 缩减：§7.4.2 由 5 条 bullets 压为 2 段+链机制文件；§7.6 删除 13 行 JSON 示例（真实 `.specify/superpowers-handoff.json` 即样板，字段名改为一行罗列）；§7.4.1 四个 bullets 合为一句；§7.3 定位句删与 §7.5 重复的「禁止 /speckit.implement」。
+- 两个 Cursor 规则瘦身：`spec-kit-superpowers.mdc`（alwaysApply）34→15 行只留四句红线指针；`harness-agents.mdc` 删「通用红线」4 条（与前者/§7.5 重复），路由表保留。
+- `docs/harness/README.md` §4 五步复述压为两句+指针。
+- 验证：章节引用 grep 无悬空；纯文档 `[no-test]`。
+
+### 2026-10-22 §7 重排：Harness 提为 §7.4，约束/交接顺延（@架构组 + AI）
+
+- 三层框架表彻底拆分：规划层定位在 §7.1，交接层定位新增于 §7.2 开头，执行层定位在 §7.3 开头。
+- 第 3 层 Harness 新开 §7.4（原 §7.6 内容上移，子节 7.4.1 角色 / 7.4.2 自进化）；原 §7.4 全局约束顺延 §7.5（三层共用硬约束句保留为首段），原 §7.5 交接文件顺延 §7.6。
+- 引用同步：AGENTS.md §4.1（§7.5→§7.6 交接、§7.6.2→§7.4.2 /evolve）、§7.2、§7.3 内引用；`agents/arch-agent/AGENTS.md`、`.cursor/rules/spec-kit-superpowers.mdc`（§7.5→§7.6）；`docs/harness/README.md` 组成表（§7.4 角色层/§7.5 约束/§7.6 交接）；`docs/context.md` 进行中区 §7.6→§7.4。历史会话记录只追加不改写。
+- 验证：grep 全仓 `§7.4–§7.9` 无悬空引用；纯文档 `[no-test]`。
+
+### 2026-10-22 §7.0 三层框架表拆分到对应节（@架构组 + AI）
+
+- §7.0「核心框架组成」整节（表 + 共用硬约束句）删除，三层定位拆分到对应位置：规划层定位并入 §7.1 开头；执行层定位并入 §7.3 开头（指向 §7.4/§7.5）；三层共用硬约束句提为 §7.4 首段；角色与进化层定位并入 §7.6 开头。
+- §7.1–§7.6 编号不变，外部引用仅 `docs/harness/README.md` 组成表由「§7.0、§7.6」改为「§7.1–§7.6」；历史会话记录中的 §7.0 字样为当时事实，不改写。
+- 验证：grep 全仓 `§7.0` 仅剩 context.md 历史记录；纯文档 `[no-test]`。
+
+### 2026-10-22 修复手工重排后的 §7 结构（@架构组 + AI）
+
+- 人工重排后审查发现 4 处硬伤并修复：①§7.0 核心框架组成表被误删，恢复；② 半成品 §7.5「harness 占位」与 §7.7 内容重复，删除占位；③§7.4 引用了不存在的 `specs/git.md`（改指 §6.6/§6.7），「截图为证」改为命令真实输出，「禁止访问项目外文件」改为对齐 §8 的最小权限表述，测试优先条补 [no-test] 豁免；④ 交接文件节回到 §7.5、Harness 回到 §7.6/§7.6.1/§7.6.2，§4.1、§7.2、§7.3 引用随之全部有效。
+- 最终 §7 编号：7.0 框架组成 → 7.1/7.2/7.3 三阶段 → 7.4 全局约束 → 7.5 交接文件 → 7.6 Harness。
+- 验证：章节引用与相对链接脚本核对 0 坏链；纯文档 [no-test]。
+
+### 2026-10-22 启动流程与触发词补全（@架构组 + AI）
+
+- 根 `AGENTS.md` §4 加载规则新增 §4.1「启动流程（所有 Agent 必须执行）」六步 + 阶段门禁（不单列顶层章节），原按需项归为 §4.2；原 Harness 小节按人工调整统一为 §7.6/§7.6.1/§7.6.2。
+- §7 工作流总览开头新增 §7.0「核心框架组成」：Spec-Kit（规划）/ Superpowers（执行）/ Harness（角色与进化）三层对照表，不重排 §7.1–§7.6 编号。
+- `commands.md` 自然语言触发表扩充：9 个 `/speckit.*` 命令全部配触发词（含 clarify/checklist/taskstoissues/constitution），「写代码吧」明确不触发 `/speckit.implement` 而走 handoff 认领。
+- 同步引用：`docs/harness/README.md`、`docs/context.md` 改为 §4.1/§7.6；EVO-20261022001 内 §7A 为当时历史事实，不改写。
+- 结构调整：按人工意见启动流程并入 §4 加载规则（§4.1 强制启动 + §4.2 按需加载），不单列顶层 §0。
+- 验证：相对链接脚本校验 0 坏链；纯文档 `[no-test]`。
+
+### 2026-10-22 接入 Harness 多角色 Agent 与自进化机制（@架构组 + AI）
+
+- 目标：参考 `harness-sdd` 模板，为仓库补齐多角色 agents、AGENTS.md 集成、evolution 进化记录能力。
+- 改动（纯文档/配置，tasks 视角为 `[no-test]` 豁免，未跑 lint/test）：
+  - 新增 `agents/README.md`、`agents/{arch,dev,test,devops}-agent/AGENTS.md`、`agents/prompts.md`：四角色，按 NestJS 9 + Mongoose + Redis 事实重写（无 frontend-agent；无 TypeORM/裸 SQL 假设）。
+  - 新增 `.specify/memory/evolution-mechanism.md`、`.specify/templates/evolution-template.md`、`.specify/memory/evolution/EVO-20261022001-接入harness多角色与进化机制.md`（status=applied，含索引）。
+  - 新增 `commands.md`（只收录真实存在的 `/speckit.*` 技能，标注 `/speckit.implement` 禁止）、`workflows/development-workflow.md`（11 阶段映射 §7 三阶段 + 角色交接物）。
+  - 新增 `.cursor/rules/harness-agents.mdc`（文件类型 → 角色建议，alwaysApply:false）。
+  - 新增 `docs/harness/README.md`（Confirmed）并更新 `docs/index.md`；根 `AGENTS.md` 新增 §7A、§3.1/§4 导航与时间戳。
+- 结果：全部新增/修改文件的相对链接经脚本校验存在；未改任何生产代码与既有 §1–§9 规则正文（§7A 为追加）。
+- 偏差：相对模板三处主动纠偏（Mongoose 事实、禁止 implement、单一权威源），已记入 EVO-20261022001。
+- 后续：人工评审；确认决策草稿（§6）后补 ADR-004；按提交规范提交（未自动提交）。
 
 ### 2026-10-15 002 OCR 评审、修复、提交与文档确认（@架构组 + AI）
 

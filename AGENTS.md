@@ -5,7 +5,7 @@
 > 目标读者：AI 代理。
 > 维护者：架构组。
 > 状态：已确认。
-> 更新时间：2026-10-10。
+> 更新时间：2026-10-22（§4 加载规则增补启动流程；§7 重排：三层框架拆入 §7.1–§7.3，Harness 为 §7.4，全局约束 §7.5，交接文件 §7.6；同日去重瘦身：evolve 细节归机制文件、JSON 示例删除以真实 handoff 文件为样板）。
 
 ## 1. 项目背景
 
@@ -99,15 +99,35 @@ pnpm run start:local
 - [Open Code Review](./docs/open-code-review/README.md)：AI 代码审查 CLI
 - [Spec Kit 快速上手](./docs/spec-kit/README.md)：AI Spec-Kit 使用教程
 - [Superpowers 快速上手](./docs/superpowers/README.md)：AI Superpowers 使用教程
+- [Harness 多 Agent 手册](./docs/harness/README.md)：多角色协作、指令手册（commands.md）、自进化机制
 
 ## 4. 加载规则
 
-- [项目上下文](./docs/context.md)：当前状态、进行中工作、阻塞项
-- [开发指南](./docs/development/development.md)： 开发流程
-- [团队代码规范](./docs/architecture/engineering/code-style.md)： 团队代码规范
-- [开发规范](./docs/development/coding-style.md)： 开发规范
+### 4.1 启动流程（所有 Agent 新会话必须按序执行，禁止跳过）
+
+1. 读本文件（全局规则，尤其 §6/§7/§8）。
+2. 读 [宪法](./.specify/memory/constitution.md)：最高优先级，不可违背；冲突以宪法为准。
+3. 读 [项目上下文](./docs/context.md)：当前状态、进行中工作、阻塞项、环境备忘。
+4. 读 `.specify/superpowers-handoff.json`：确认当前 feature 与状态；写生产代码前必须是本人认领的 `executing`（流程见 §7.6）。
+5. 确定角色并读对应规则：`agents/<role>-agent/AGENTS.md` 与 [agents/prompts.md](./agents/prompts.md)；角色不确定时按 [.cursor/rules/harness-agents.mdc](./.cursor/rules/harness-agents.mdc) 路由或用 `/role` 切换。
+6. 按当前阶段加载产物：规划阶段读 `specs/<feature>/spec.md`、`plan.md`、`tasks.md` 及相关设计/ADR；执行阶段以 `tasks.md` 为唯一执行依据。
+
+启动后必须满足的阶段门禁：
+
+- 没有 spec → plan → tasks → `/speckit.analyze` 通过 + handoff `ready_for_execution`，**拒绝写生产代码**。
+- 代码任务必须 TDD（RED→GREEN→REFACTOR）；禁止 `/speckit.implement` 绕过 Superpowers。
+- 任务收尾必须 `/evolve`（见 §7.4.2）；中断/阻塞把 handoff 置 `blocked` 并写 `reason`。
+- 自然语言即可触发流程命令，触发词与命令对照见 [commands.md](./commands.md)。
+
+### 4.2 按需加载（不预读）
+
+- [开发指南](./docs/development/development.md)：开发流程
+- [团队代码规范](./docs/architecture/engineering/code-style.md)：团队代码规范
+- [开发规范](./docs/development/coding-style.md)：开发规范
 - 任务涉及架构改动时：必读 [架构总览](./docs/architecture/overview.md) 及相关 ADR，按[架构索引](./docs/architecture/README.md)的对照表按需加载
-- 任务涉及某工具时：读取第 3.1 节对应的工具手册，不要预读全部
+- 任务涉及某工具时：读取第 3.1 节对应的工具手册
+- 阶段交接与角色交接物：[workflows/development-workflow.md](./workflows/development-workflow.md)
+- 任务收尾复盘时：读取[进化机制](./.specify/memory/evolution-mechanism.md)，执行 `/evolve`
 
 ## 5. 维护规则
 
@@ -193,6 +213,8 @@ pnpm run start:local
 
 ### 7.1 阶段一：Spec-Kit 设计 (WHAT)
 
+规划层（WHAT）：决定做什么、怎么做、拆成什么任务，拥有唯一规划权。
+
 1.  `/speckit.constitution` — 建立或更新项目宪法。
 2.  `/speckit.specify` — 撰写功能规范 `specs/<feature>/spec.md`。
 3.  `/speckit.clarify` — 澄清规范中的模糊点（按需，可多轮）。
@@ -202,28 +224,61 @@ pnpm run start:local
 
 ### 7.2 阶段二：手动交接 (HANDOFF)
 
-7.  **强制步骤**：在 analyze 通过后，创建或更新 `.specify/superpowers-handoff.json`（字段见 §7.5）。
-8.  填全 `feature_directory`、`tasks_file`、`source_of_truth`、`constitution`，再将 `status` 置为 `ready_for_execution`。字段不全禁止置位。
+交接层：规划产物经一致性闸门后，通过 `.specify/superpowers-handoff.json` 移交执行权。
+
+1.  **强制步骤**：在 analyze 通过后，创建或更新 `.specify/superpowers-handoff.json`（字段见 §7.6）。
+2.  填全 `feature_directory`、`tasks_file`、`source_of_truth`、`constitution`，再将 `status` 置为 `ready_for_execution`。字段不全禁止置位。
 
 ### 7.3 阶段三：Superpowers 执行 (HOW)
 
-9.  **强制步骤**：执行任何实现前，读取 `.specify/superpowers-handoff.json`。
-10. 仅当 `status=ready_for_execution` 时，写入 `claimed_by`/`claimed_at` 并将状态原子置为 `executing`（认领，见 §7.5）。
-11. 使用 `superpowers:executing-plans` 技能，以 `tasks_file` 为唯一执行依据。
-12. **TDD 范围**：凡新增/修改生产逻辑代码的任务，必须先写失败测试（RED）→ 最小实现（GREEN）→ 重构（REFACTOR），技能 `superpowers:test-driven-development`；纯文档、配置、重命名任务在 `tasks.md` 标注 `[no-test]` 后豁免。
-13. 全部任务完成后，跑 `superpowers:verification-before-completion`（可用 `/speckit.converge` 对照规格补漏），通过才将 `status` 置为 `complete`。
-14. 执行中断、任务失败或阻塞时，置 `status=blocked` 并写 `reason`，不得停留在 `executing`。
+执行层（HOW）：handoff 认领后以 tasks.md 为唯一依据，按 Superpowers 纪律实现（TDD、systematic-debugging、verification-before-completion）；交接文件见 §7.6，全局约束见 §7.5。
 
-### 7.4 核心约束
+1.  **强制步骤**：执行任何实现前，读取 `.specify/superpowers-handoff.json`。
+2.  仅当 `status=ready_for_execution` 时，写入 `claimed_by`/`claimed_at` 并将状态原子置为 `executing`（认领，见 §7.6）。
+3.  使用 `superpowers:executing-plans` 技能，以 `tasks_file` 为唯一执行依据。
+4.  **TDD 范围**：凡新增/修改生产逻辑代码的任务，必须先写失败测试（RED）→ 最小实现（GREEN）→ 重构（REFACTOR），技能 `superpowers:test-driven-development`；纯文档、配置、重命名任务在 `tasks.md` 标注 `[no-test]` 后豁免。
+5.  全部任务完成后，跑 `superpowers:verification-before-completion`（可用 `/speckit.converge` 对照规格补漏），通过才将 `status` 置为 `complete`。
+6.  执行中断、任务失败或阻塞时，置 `status=blocked` 并写 `reason`，不得停留在 `executing`。
+
+### 7.4 Harness 多 Agent 协作层（角色与进化）
+
+角色与进化层（WHO / 复盘）：§7.1–§7.3 解决「按什么流程做」，本节规定「由哪个角色做、教训如何沉淀」；§7.5 为三层共用约束，§7.6 为交接文件规则。完整手册见 [docs/harness/README.md](./docs/harness/README.md)，角色规则是宪法与本文件的下位文件，冲突时以宪法、AGENTS.md 为准。
+
+#### 7.4.1 角色（纯后端，四角色，不设前端角色）
+
+| 角色            | 职责边界                                                                                                            | 规则文件                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 🏛️ arch-agent   | 宪章维护、spec/plan/tasks 评审与 analyze 闸门、handoff 编排、ADR、Code Review、EVO 归并；不写业务代码               | [agents/arch-agent/AGENTS.md](./agents/arch-agent/AGENTS.md)     |
+| 👨‍💻 dev-agent    | 认领 handoff 后按 tasks.md 以 TDD 实现 NestJS 模块（Controller/Service/Mongoose Schema/DTO），缓存只经 CacheService | [agents/dev-agent/AGENTS.md](./agents/dev-agent/AGENTS.md)       |
+| 🧪 test-agent   | Jest 单测 + supertest E2E、契约/权限/边界覆盖、Bug 报告、验收门禁                                                   | [agents/test-agent/AGENTS.md](./agents/test-agent/AGENTS.md)     |
+| 🔧 devops-agent | env 与本地依赖、CI 门禁、部署回滚（expand-contract）、健康检查、安全加固、故障处置                                  | [agents/devops-agent/AGENTS.md](./agents/devops-agent/AGENTS.md) |
+
+角色可随时用 `/role <arch|dev|test|devops>-agent` 或自然语言切换，但同一时间只按一个角色的职责边界行动，跨职责产出移交对应角色；注入 Prompt 见 [agents/prompts.md](./agents/prompts.md)，指令表见 [commands.md](./commands.md)，阶段-角色交接物对照见 [workflows/development-workflow.md](./workflows/development-workflow.md)，Cursor 文件类型路由建议见 [.cursor/rules/harness-agents.mdc](./.cursor/rules/harness-agents.mdc)。
+
+#### 7.4.2 自进化机制（/evolve）
+
+任务 converge 后、handoff 置 `complete` 前强制执行；Bug 修复、故障处置、同类问题第 2 次出现也触发。产出 EVO 记录（`pending_apply`），规则必须归并到既有权威文件后置 `applied` 并在机制文件索引登记；同一错误禁止记录超过 2 次，历史 EVO 只追加不改写。
+
+触发时机、模板、归并目标、优先级与完成判定详见 [.specify/memory/evolution-mechanism.md](./.specify/memory/evolution-mechanism.md)。
+
+### 7.5 全局强制约束（所有 Agent 必须遵守）
+
+三层（Spec-Kit / Superpowers / Harness）共用同一条硬约束：宪法最高优先级，规范是唯一真相来源；无 analyze 通过 + handoff `ready_for_execution`，不得写生产代码。
 
 - **唯一真相来源**：设计以 `spec.md`/`plan.md` 为准，任务执行以 `tasks.md` 为准；handoff 的 `source_of_truth` 指向 feature 目录，`tasks_file` 指向具体任务文件。
 - **执行权唯一**：实现阶段只允许走 Superpowers（§7.3）。**禁止调用 `/speckit.implement`** 绕过 TDD。
 - **禁止重叠**：`status=executing` 时，禁止再次调用 `/speckit.plan` 或 `/speckit.tasks`；需改规划先落 `blocked` 并人工确认。
 - **宪法优先**：执行时必须读取并遵守 `.specify/memory/constitution.md`。
+- **测试优先**：新增/修改生产逻辑必须先写失败测试，再写实现（TDD）；单元测试覆盖率目标 ≥80%（[no-test] 豁免见 §7.3）
+- **单一职责**：一次只做一个任务，禁止把多个不相关的修改混在同一个提交里
+- **证据驱动完成**：任务完成必须提供验证证据（`pnpm lint && pnpm test` 等命令的真实输出、接口返回、构建日志），禁止口头声称完成
+- **最小权限**：禁止执行破坏性命令、禁止提交敏感信息（密钥、密码、令牌）；AI 代理未经允许不得创建/合并/删除远程分支（见 §8、§6.6）
+- **Git 规范**：严格遵守 §6.6 分支规范与 §6.7 提交规范（Conventional Commits）
 
-### 7.5 交接文件维护规则
+### 7.6 交接文件维护规则
 
 - 路径：`.specify/superpowers-handoff.json`；维护者：当前 feature 的编排 Agent，人类审查。
+- 字段：`feature_directory`、`source_of_truth`、`tasks_file`、`constitution`、`status`、`claimed_by`、`claimed_at`、`reason`、`last_updated`；字段不全禁止置 `ready_for_execution`，当前文件即完整样板。
 - 状态机：
 
 ```text
@@ -234,21 +289,6 @@ draft → ready_for_execution → executing → complete
 
 - 仅在状态转换或引用路径变化时修改；`last_updated` 不作心跳。
 - 并发保护：进入 `executing` 必须同时写 `claimed_by`（Agent/会话标识）与 `claimed_at`（ISO 时间）；已被认领且非本人时不得接管。
-- 完整字段示例：
-
-```json
-{
-  "feature_directory": "specs/user-login",
-  "source_of_truth": "specs/user-login",
-  "tasks_file": "specs/user-login/tasks.md",
-  "constitution": ".specify/memory/constitution.md",
-  "status": "ready_for_execution",
-  "claimed_by": "",
-  "claimed_at": "",
-  "reason": "",
-  "last_updated": "2026-10-13T22:00:00+08:00"
-}
-```
 
 ## 8. 禁止事项
 

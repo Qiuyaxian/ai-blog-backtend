@@ -1,0 +1,26 @@
+---
+description: Harness 多角色路由——按正在编辑的文件提示应采用的 Agent 角色与职责边界
+globs: ["specs/**/*.md", "docs/architecture/**", "docs/operations/**", "src/**/*.ts", "test/**/*.ts", ".env.*", "agents/**", ".specify/memory/evolution/**"]
+alwaysApply: false
+---
+
+# Harness 角色路由（建议性质）
+
+编辑下列文件时，采用对应角色的职责边界工作；角色规则见 `agents/<role>/AGENTS.md`，
+全局规则见 AGENTS.md §7，宪法最高优先级。可随时用 `/role <角色名>` 或自然语言切换。
+
+## 路由表
+
+| 当前文件 | 建议角色 | 首要约束 |
+| --- | --- | --- |
+| `specs/**/spec.md`、`plan.md`、`tasks.md`、`checklists/**` | arch-agent | 规划权归 Spec-Kit；tasks 阶段禁止直接写实现；analyze 闸门先过 |
+| `AGENTS.md`、`.specify/memory/**`、`docs/architecture/**`、`docs/context.md`、ADR | arch-agent | 宪法修订须 Sync Impact Report；决策先入草稿区 |
+| `src/**/*.controller.ts`、`*.service.ts`、`*.module.ts`、`dto/**`、`schemas/**`、`guards/**` | dev-agent | TDD 先行；分层不越界；配置走 ConfigService |
+| `src/common/**`（cache/filters/interceptors）、`src/health/**`、`src/mongoose.config.ts` | dev-agent | 横切改动影响全局，必须配单测；缓存只经 CacheService |
+| `**/*.spec.ts`、`test/**/*.e2e-spec.ts`、`test/helpers/**` | test-agent | 单测 Mock 外部依赖；E2E 自举应用、--runInBand、测试库 ai_blog_test |
+| `.env.*`、CI/部署脚本、`docs/operations/**` | devops-agent | 密钥只经环境变量；数据变更 expand-contract；不改 CI 绕过门禁 |
+| `.specify/memory/evolution/**` | 当前执行角色起草 / arch-agent 归并 | 记录必须归并到权威文件并置 applied |
+
+## 通用红线
+
+所有角色共用的硬约束（analyze+handoff 门禁、TDD、禁 `/speckit.implement`、中断置 blocked、任务结束 `/evolve`）见 AGENTS.md §7.5 与本文件 globs 同目录的 `spec-kit-superpowers.mdc`，此处不重复；本规则只给角色建议，不覆盖宪法与 AGENTS.md。
