@@ -11,7 +11,7 @@ import { REDIS_CLIENT } from './cache.constants';
 export class CacheService {
   constructor(
     @Inject(REDIS_CLIENT)
-    private readonly redis: Pick<Redis, 'set' | 'get' | 'del'>,
+    private readonly redis: Pick<Redis, 'set' | 'get' | 'del' | 'multi'>,
   ) {}
 
   /** 信任边界：键必须是非空字符串（契约 §2.1）；空白键不触达客户端 */
@@ -48,5 +48,28 @@ export class CacheService {
   async del(key: string): Promise<void> {
     this.requireKey(key);
     await this.redis.del(key);
+  }
+
+  /**
+   * 原子自增并刷新 TTL（multi 管道一次提交，滑动窗口计数用）。
+   * 返回自增后的计数值。
+   */
+  async incrWithTtl(key: string, ttlSeconds: number): Promise<number> {
+    this.requireKey(key);
+    if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0) {
+      throw new RangeError(
+        `ttlSeconds must be a positive integer, got: ${String(ttlSeconds)}`,
+      );
+    }
+    const replies = (await this.redis
+      .multi()
+      .incr(key)
+      .expire(key, ttlSeconds)
+      .exec()) as Array<[Error | null, number | null]>;
+    const incrError = replies[0][0];
+    if (incrError) {
+      throw incrError;
+    }
+    return Number(replies[0][1]);
   }
 }

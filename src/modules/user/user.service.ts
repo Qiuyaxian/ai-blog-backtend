@@ -71,6 +71,24 @@ export class UserService {
     return toUserResponse(doc);
   }
 
+  /**
+   * 鉴权专用只读查询：返回会话回查所需的最小身份信息。
+   * 软删/不存在返回 null（调用方 Guard 据此拒绝）；查询异常原样上抛（fail-closed）。
+   */
+  async getAuthPrincipal(
+    id: string,
+  ): Promise<{ id: string; isAdmin: boolean } | null> {
+    const doc = await this.userModel
+      .findOne({ _id: id, deletedAt: null })
+      .select('_id isAdmin')
+      .lean()
+      .exec();
+    if (!doc) {
+      return null;
+    }
+    return { id: String(doc._id), isAdmin: doc.isAdmin };
+  }
+
   async updateEmail(
     userId: string,
     dto: UpdateUserDto,

@@ -417,4 +417,55 @@ describe('UserService admin operations', () => {
       });
     });
   });
+
+  describe('getAuthPrincipal', () => {
+    const id = '65ab00000000000000000001';
+
+    function setup(doc: unknown, execReject?: Error) {
+      const exec = execReject
+        ? jest.fn().mockRejectedValue(execReject)
+        : jest.fn().mockResolvedValue(doc);
+      const lean = jest.fn().mockReturnValue({ exec });
+      const select = jest.fn().mockReturnValue({ lean });
+      const findOne = jest.fn().mockReturnValue({ select, lean });
+      // @ts-expect-error 注入最小 model 桩
+      const service: UserService = new UserService({ findOne });
+      return { service, findOne, select, lean, exec };
+    }
+
+    it('returns {id,isAdmin} for a live user and queries by _id + deletedAt:null', async () => {
+      const { service, findOne } = setup({ _id: id, isAdmin: true });
+      await expect(service.getAuthPrincipal(id)).resolves.toEqual({
+        id,
+        isAdmin: true,
+      });
+      expect(findOne).toHaveBeenCalledWith({ _id: id, deletedAt: null });
+    });
+
+    it('returns null when the user does not exist', async () => {
+      const { service } = setup(null);
+      await expect(service.getAuthPrincipal(id)).resolves.toBeNull();
+    });
+
+    it('returns null for a soft-deleted user (query filters deletedAt:null)', async () => {
+      const { service, findOne } = setup(null);
+      const result = await service.getAuthPrincipal(id);
+      expect(result).toBeNull();
+      expect(findOne.mock.calls[0][0]).toMatchObject({
+        _id: id,
+        deletedAt: null,
+      });
+    });
+
+    it('projects only _id and isAdmin (no password/usernameLower/deletedAt materialized)', async () => {
+      const { service, select } = setup({ _id: id, isAdmin: false });
+      await service.getAuthPrincipal(id);
+      expect(select).toHaveBeenCalledWith('_id isAdmin');
+    });
+
+    it('propagates query errors so the Guard can fail closed', async () => {
+      const { service } = setup(undefined, new Error('mongo down'));
+      await expect(service.getAuthPrincipal(id)).rejects.toThrow('mongo down');
+    });
+  });
 });

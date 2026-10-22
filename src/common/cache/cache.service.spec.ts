@@ -3,10 +3,17 @@ import { REDIS_CLIENT } from './cache.constants';
 import { CacheService } from './cache.service';
 
 /** ioredis 客户端最小桩 */
+interface MockMulti {
+  incr: jest.Mock;
+  expire: jest.Mock;
+  exec: jest.Mock;
+}
+
 interface MockRedis {
   set: jest.Mock;
   get: jest.Mock;
   del: jest.Mock;
+  multi: jest.Mock;
 }
 
 describe('CacheService', () => {
@@ -14,13 +21,22 @@ describe('CacheService', () => {
   let service: CacheService;
 
   beforeEach(async () => {
-    redis = { set: jest.fn(), get: jest.fn(), del: jest.fn() };
+    const multi: MockMulti = {
+      incr: jest.fn().mockReturnThis(),
+      expire: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([[null, 0]]),
+    };
+    redis = {
+      set: jest.fn(),
+      get: jest.fn(),
+      del: jest.fn(),
+      multi: jest.fn().mockReturnValue(multi),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [CacheService, { provide: REDIS_CLIENT, useValue: redis }],
     }).compile();
     service = moduleRef.get(CacheService);
   });
-
   describe('set', () => {
     it.each(['', '   '])(
       'rejects blank key %p with TypeError without touching client',
@@ -101,6 +117,49 @@ describe('CacheService', () => {
     it('rejects when client rejects', async () => {
       redis.del.mockRejectedValue(new Error('offline'));
       await expect(service.del('k')).rejects.toThrow('offline');
+    });
+  });
+
+  describe('incrWithTtl', () => {
+    it('atomically incr + expire via one multi pipeline', async () => {
+      await service.incrWithTtl('auth:fail:u1', 900);
+      expect(redis.multi).toHaveBeenCalledTimes(1);
+      const multi = redis.multi.mock.results[0].value as MockMulti;
+      expect(multi.incr).toHaveBeenCalledWith('auth:fail:u1');
+      expect(multi.expire).toHaveBeenCalledWith('auth:fail:u1', 900);
+      expect(multi.exec).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves to the incremented counter from the INCR reply', async () => {
+      const multi = redis.multi() as MockMulti;
+      multi.exec.mockResolvedValue([[null, 3]]);
+      await expect(service.incrWithTtl('auth:fail:u1', 900)).resolves.toBe(3);
+    });
+
+    it.each(['', '   '])(
+      'rejects blank key %p with TypeError without touching client',
+      async (key) => {
+        await expect(service.incrWithTtl(key, 900)).rejects.toBeInstanceOf(
+          TypeError,
+        );
+        expect(redis.multi).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([0, -1, 1.5, NaN])(
+      'rejects invalid ttl %p with RangeError',
+      async (ttl) => {
+        await expect(
+          service.incrWithTtl('auth:fail:u1', ttl),
+        ).rejects.toBeInstanceOf(RangeError);
+        expect(redis.multi).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects when the pipeline rejects (no silent swallow)', async () => {
+      const multi = redis.multi() as MockMulti;
+      multi.exec.mockRejectedValue(new Error('offline'));
+      await expect(service.incrWithTtl('k', 900)).rejects.toThrow('offline');
     });
   });
 
