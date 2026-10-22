@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Public } from '../auth/decorators/public.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { DeleteUserDto } from './dto/delete-user.dto';
 import { SetAdminDto } from './dto/set-admin.dto';
@@ -22,7 +23,8 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  // 注册：公开接口，无守卫
+  // 注册：公开接口，无守卫；@Public 为 US2 全局默认拒绝排雷
+  @Public()
   @Post()
   @HttpCode(201)
   create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {

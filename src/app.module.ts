@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CacheModule } from './common/cache/cache.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { buildMongooseOptions } from './mongoose.config';
 
@@ -22,6 +23,7 @@ import { buildMongooseOptions } from './mongoose.config';
     CacheModule,
     HealthModule,
     UserModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

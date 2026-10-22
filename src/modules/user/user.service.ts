@@ -89,6 +89,37 @@ export class UserService {
     return { id: String(doc._id), isAdmin: doc.isAdmin };
   }
 
+  /**
+   * 鉴权专用登录定位：按用户名（小写归一）或邮箱 + 未软删查唯一账号，并显式取 password 哈希。
+   * 返回脱敏用户视图与密码哈希（密码哈希不进 user 视图）；未命中（不存在/软删）返回 null。
+   */
+  async findLoginCredential(normalizedIdentifier: string): Promise<{
+    id: string;
+    passwordHash: string;
+    user: UserResponseDto;
+  } | null> {
+    const doc = await this.userModel
+      .findOne({
+        $or: [
+          { usernameLower: normalizedIdentifier },
+          { email: normalizedIdentifier },
+        ],
+        deletedAt: null,
+      })
+      .select('+password')
+      .lean()
+      .exec();
+    if (!doc) {
+      return null;
+    }
+    const { password, ...safe } = doc as typeof doc & { password: string };
+    return {
+      id: String(doc._id),
+      passwordHash: password,
+      user: toUserResponse(safe as Parameters<typeof toUserResponse>[0]),
+    };
+  }
+
   async updateEmail(
     userId: string,
     dto: UpdateUserDto,

@@ -56,13 +56,13 @@ description: 'Task list for 003-user-login'
 
 **Independent test**: 已注册普通用户分别以用户名、邮箱（含大小写/首尾空格差异）登录拿到 `token/expiresAt/user`（无 password）；错误密码、不存在标识、软删账号统一 401 `INVALID_CREDENTIALS`，不签发任何键。
 
-- [ ] ⬜ T010 [P] [US1] RED：新建 `src/modules/auth/dto/login.dto.spec.ts`——`identifier` 缺失/trim 后空/短于 2/长于 254、`password` 缺失/短于 8/长于 64 均校验失败；合法边界值通过（whitelist + forbidNonWhitelisted 下多余字段被拒）。
-- [ ] ⬜ T011 [US1] GREEN：新建 `src/modules/auth/dto/login.dto.ts`：`identifier: string`（`@Transform` trim、`@IsNotEmpty`、`@Length(2,254)`）、`password: string`（`@IsNotEmpty`、`@Length(8,64)`，登录路径不强制字符组合，契约 §1）。
-- [ ] ⬜ T012 [P] [US1] RED：新建 `src/modules/auth/auth.service.spec.ts` 登录成功路径——用户名登录、邮箱登录（归一化 trim+lowercase，research R3 `$or: [{usernameLower},{email}]` + `deletedAt:null`，`.select('+password')`）成功：返回 64 字符 hex token、`expiresAt=now+TTL`（ISO）、user 复用 `toUserResponse`（无 password）；以 sha256(token) 为键 `cache.set` 写 `SessionPayload{sub}` TTL=配置值；成功时 `cache.del` 失败计数键（FR-013 清零，先写调用断言，US4 实现计数后仍成立）。
-- [ ] ⬜ T013 [P] [US1] RED（同文件续用例）：错误密码、标识不存在、软删账号均抛 `UnauthorizedException('INVALID_CREDENTIALS')` 且不调用 `cache.set`；标识不存在分支对固定 dummy hash 执行一次 `bcrypt.compare`（断言 compare 被调用以均化时序，research R5），且不读写任何 fail/lock 键（FR-013 澄清）；Mock `cache.set` reject 时登录上抛 500 路径异常且不返回令牌（FR-015 签发侧 fail-closed，research R8）；bcrypt/Mongo 异常同样上抛不吞错；日志不含密码（断言 logger 参数）。
-- [ ] ⬜ T014 [US1] GREEN：新建 `src/modules/auth/auth.service.ts`：`login(dto)`——归一化 → $or 定位（含 `+password`）→ 不存在走 dummy bcrypt → `bcrypt.compare` → 失败统一 401（**失败计数与锁定判定本阶段一律不实现**，以 `// TODO(US4/T032): 失败计数 incrWithTtl + lock 键判定` 标位，避免实现先于其 RED 用例 T031）→ 成功 DEL 计数键（键不存在时 del 幂等，行为已由 T012 断言）+ `randomBytes(32).toString('hex')` 生成令牌 + sha256 入键 + `cache.set`（失败自然上抛，由 T013 的 500 用例覆盖）+ 返回 `{ token, expiresAt, user: toUserResponse(doc) }`；构造注入 UserService 之外只注入 CacheService/ConfigService；新建 `src/modules/auth/auth.module.ts`（`imports: [UserModule]`，providers/exports AuthService；**本阶段不注册 APP_GUARD**，归 T022）。
-- [ ] ⬜ T015 [P] [US1] RED：新建 `test/auth-login.e2e-spec.ts`（经 `createTestApp`）——注册普通用户后：用户名登录 200 且体含 `token`（64 hex）/`expiresAt`（= 当前时刻 +7 天，容差断言）/`user`（含 username/email/isAdmin/createdAt，无 password/deletedAt/usernameLower）；`' ALICE@EXAMPLE.COM '` 邮箱登录 200；错误密码、不存在标识 401 且 body `code=INVALID_CREDENTIALS`，与错误密码响应体形状一致（FR-001/002/005/006）。
-- [ ] ⬜ T016 [US1] GREEN：新建 `src/modules/auth/auth.controller.ts`：`@Controller('auth')` + `@Public() @Post('login') @HttpCode(200)` 接收 `LoginDto`、调 `authService.login`、直接返回结果（Controller 无业务逻辑、不碰 @Req/@Res）；在 `auth.module.ts` 注册 controller；在 `src/app.module.ts` imports 注册 AuthModule。
+- [x] ✅ T010 [P] [US1] RED：新建 `src/modules/auth/dto/login.dto.spec.ts`——`identifier` 缺失/trim 后空/短于 2/长于 254、`password` 缺失/短于 8/长于 64 均校验失败；合法边界值通过（whitelist + forbidNonWhitelisted 下多余字段被拒）。
+- [x] ✅ T011 [US1] GREEN：新建 `src/modules/auth/dto/login.dto.ts`：`identifier: string`（`@Transform` trim、`@IsNotEmpty`、`@Length(2,254)`）、`password: string`（`@IsNotEmpty`、`@Length(8,64)`，登录路径不强制字符组合，契约 §1）。
+- [x] ✅ T012 [P] [US1] RED：新建 `src/modules/auth/auth.service.spec.ts` 登录成功路径——用户名登录、邮箱登录（归一化 trim+lowercase，research R3 `$or: [{usernameLower},{email}]` + `deletedAt:null`，`.select('+password')`）成功：返回 64 字符 hex token、`expiresAt=now+TTL`（ISO）、user 复用 `toUserResponse`（无 password）；以 sha256(token) 为键 `cache.set` 写 `SessionPayload{sub}` TTL=配置值；成功时 `cache.del` 失败计数键（FR-013 清零，先写调用断言，US4 实现计数后仍成立）。
+- [x] ✅ T013 [P] [US1] RED（同文件续用例）：错误密码、标识不存在、软删账号均抛 `UnauthorizedException('INVALID_CREDENTIALS')` 且不调用 `cache.set`；标识不存在分支对固定 dummy hash 执行一次 `bcrypt.compare`（断言 compare 被调用以均化时序，research R5），且不读写任何 fail/lock 键（FR-013 澄清）；Mock `cache.set` reject 时登录上抛 500 路径异常且不返回令牌（FR-015 签发侧 fail-closed，research R8）；bcrypt/Mongo 异常同样上抛不吞错；日志不含密码（断言 logger 参数）。
+- [x] ✅ T014 [US1] GREEN：新建 `src/modules/auth/auth.service.ts`：`login(dto)`——归一化 → $or 定位（含 `+password`）→ 不存在走 dummy bcrypt → `bcrypt.compare` → 失败统一 401（**失败计数与锁定判定本阶段一律不实现**，以 `// TODO(US4/T032): 失败计数 incrWithTtl + lock 键判定` 标位，避免实现先于其 RED 用例 T031）→ 成功 DEL 计数键（键不存在时 del 幂等，行为已由 T012 断言）+ `randomBytes(32).toString('hex')` 生成令牌 + sha256 入键 + `cache.set`（失败自然上抛，由 T013 的 500 用例覆盖）+ 返回 `{ token, expiresAt, user: toUserResponse(doc) }`；构造注入 UserService 之外只注入 CacheService/ConfigService；新建 `src/modules/auth/auth.module.ts`（`imports: [UserModule]`，providers/exports AuthService；**本阶段不注册 APP_GUARD**，归 T022）。
+- [x] ✅ T015 [P] [US1] RED：新建 `test/auth-login.e2e-spec.ts`（经 `createTestApp`）——注册普通用户后：用户名登录 200 且体含 `token`（64 hex）/`expiresAt`（= 当前时刻 +7 天，容差断言）/`user`（含 username/email/isAdmin/createdAt，无 password/deletedAt/usernameLower）；`' ALICE@EXAMPLE.COM '` 邮箱登录 200；错误密码、不存在标识 401 且 body `code=INVALID_CREDENTIALS`，与错误密码响应体形状一致（FR-001/002/005/006）。
+- [x] ✅ T016 [US1] GREEN：新建 `src/modules/auth/auth.controller.ts`：`@Controller('auth')` + `@Public() @Post('login') @HttpCode(200)` 接收 `LoginDto`、调 `authService.login`、直接返回结果（Controller 无业务逻辑、不碰 @Req/@Res）；在 `auth.module.ts` 注册 controller；在 `src/app.module.ts` imports 注册 AuthModule。
 
 **Checkpoint**: US1 独立可用——`POST /auth/login` 真实链路 200/401 行为符合契约；模块尚未挂全局 Guard，其余接口行为不变。
 
@@ -74,8 +74,8 @@ description: 'Task list for 003-user-login'
 
 **Independent test**: 无任何令牌 `POST /users` 注册成功（201，响应与 001 一致），随后用新凭据登录 200；重复用户名/邮箱仍按 001 规则 409。本阶段先打 `@Public()`（此时全局 Guard 尚未注册，装饰器无副作用），为 T022 全局默认拒绝排雷（plan 风险 R1）。
 
-- [ ] ⬜ T017 [P] [US5] RED：在既有 `test/user-register.e2e-spec.ts` 增补用例——不带任何令牌注册合法用户 201 后，随即 `POST /auth/login` 用新账号登录返回 200 与 token（US5 场景 3）；重复用户名/邮箱的拒绝行为维持原断言不变（FR-020）。
-- [ ] ⬜ T018 [US5] GREEN：`src/modules/user/user.controller.ts` 的 `@Post()` 注册方法加 `@Public()`（import 自 auth 模块装饰器；仅加 1 个装饰器，不改注册逻辑/DTO/响应）。
+- [x] ✅ T017 [P] [US5] RED：在既有 `test/user-register.e2e-spec.ts` 增补用例——不带任何令牌注册合法用户 201 后，随即 `POST /auth/login` 用新账号登录返回 200 与 token（US5 场景 3）；重复用户名/邮箱的拒绝行为维持原断言不变（FR-020）。
+- [x] ✅ T018 [US5] GREEN：`src/modules/user/user.controller.ts` 的 `@Post()` 注册方法加 `@Public()`（import 自 auth 模块装饰器；仅加 1 个装饰器，不改注册逻辑/DTO/响应）。
 
 **Checkpoint**: 注册链路在"即将默认拒绝"的代码形态下仍全绿，US2 可安全注册全局 Guard。
 

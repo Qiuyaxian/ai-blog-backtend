@@ -107,4 +107,18 @@ describe('POST /users (register)', () => {
       })
       .expect(400);
   });
+
+  it('allows login with the new credentials immediately after register (US5)', async () => {
+    await request(app.getHttpServer())
+      .post('/users')
+      .send(validBody)
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ identifier: 'Alice', password: 'abc12345' })
+      .expect(200);
+    expect(res.body.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(res.body.user).toMatchObject({ username: 'Alice' });
+  });
 });

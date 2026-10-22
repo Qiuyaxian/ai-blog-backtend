@@ -468,4 +468,50 @@ describe('UserService admin operations', () => {
       await expect(service.getAuthPrincipal(id)).rejects.toThrow('mongo down');
     });
   });
+
+  describe('findLoginCredential', () => {
+    const id = '65ab00000000000000000001';
+    const normalized = 'alice';
+    const userFields = {
+      username: 'Alice',
+      email: 'alice@example.com',
+      isAdmin: false,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    };
+
+    function setup(doc: unknown) {
+      const exec = jest.fn().mockResolvedValue(doc);
+      const lean = jest.fn().mockReturnValue({ exec });
+      const select = jest.fn().mockReturnValue({ lean });
+      const findOne = jest.fn().mockReturnValue({ select, lean });
+      // @ts-expect-error 注入最小 model 桩
+      const service: UserService = new UserService({ findOne });
+      return { service, findOne, select, exec };
+    }
+
+    it('queries by $or usernameLower/email with deletedAt:null and selects password', async () => {
+      const { service, findOne, select } = setup({
+        _id: id,
+        ...userFields,
+        password: 'hash',
+      });
+      const result = await service.findLoginCredential(normalized);
+      expect(findOne).toHaveBeenCalledWith({
+        $or: [{ usernameLower: normalized }, { email: normalized }],
+        deletedAt: null,
+      });
+      expect(select).toHaveBeenCalledWith('+password');
+      expect(result).toEqual({
+        id,
+        passwordHash: 'hash',
+        user: { id, ...userFields },
+      });
+    });
+
+    it('returns null when no live account matches', async () => {
+      const { service } = setup(null);
+      await expect(service.findLoginCredential('nobody')).resolves.toBeNull();
+    });
+  });
 });
