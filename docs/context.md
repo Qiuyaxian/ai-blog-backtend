@@ -2,7 +2,7 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-22 01:50（@架构组 + AI，会话：接入 Harness 多角色 Agent 与自进化机制，纯文档/配置 [no-test]）
+> 最后更新：2026-10-22 22:57（@架构组 + AI，会话：003-user-login plan 检查/tasks/analyze/handoff，纯文档 [no-test]）
 
 ## 1. 当前状态
 
@@ -11,12 +11,21 @@
 - 阻塞项：无
 - 风险：
   - E2E 依赖本地 redis-server 在运行；沙箱内 loopback 被拦时需在沙箱外执行 `pnpm test:e2e`。
-  - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地后必须删除该桩（T035 已注明）。
+  - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地时删除该桩（tasks T023/T027，仅 user-profile/user-admin 2 套件用桩）。
   - 访问日志只有请求级 requestId 关联，无跨服务 TraceContext 传播、无指标导出（宪法原则 V 延后项，见 §4 待决）。
   - 本地 mongod 为单节点非副本集，事务/change streams 不可验证（设计 §5.6）。
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
+
+### 用户登录鉴权 003（规划完成，待执行，未写生产代码）
+
+- 依据：[spec](../specs/003-user-login/spec.md)（Draft，9 项澄清 + 安全评审）、[plan](../specs/003-user-login/plan.md)、[tasks](../specs/003-user-login/tasks.md)（36 任务）、research/data-model/contracts/quickstart、[ADR-004](./architecture/adr/ADR-004-opaque-token-redis-session.md)（Draft）
+- 范围：用户名或邮箱+密码登录、Bearer 不透明令牌 + Redis 会话（7 天）、全局 AuthGuard 每请求回查账号（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟（锁定期对外统一 401 不回 423，真实原因只入日志；不存在标识不计数）；删除 x-test-user 测试桩
+- 状态：specify/clarify/plan/tasks 已完成；`/speckit.analyze` 通过（0 Critical/High；3 MEDIUM 已修：任务引用错号、计数 GREEN 早于 RED 违反 TDD、签发侧 fail-closed 缺用例；4 LOW 留执行时处理）；handoff 已置 `ready_for_execution`（2026-10-22 22:54），等待 dev-agent 认领
+- 任务编排：US1 登录 → US5 注册打 @Public → US2 全局 Guard+删桩 → US3 登出 → US4 防爆破（顺序非 spec 编号，@Public 必须先于 APP_GUARD 注册）
+- 触碰面：新增 `src/modules/auth/`；UserModule 导出 UserService + 新增只读 `getAuthPrincipal`；CacheService 增 `incrWithTtl`；4 处公开路由打 `@Public()`；2 个用桩 E2E 改真实登录；新增 env `AUTH_TOKEN_TTL_SECONDS`
+- 无新第三方依赖（Node crypto + 既有 bcrypt，不引 passport/jwt）；无 Mongo Schema 变更
 
 ### Harness 多 Agent 协作层（文档/配置，无生产代码）
 
@@ -67,6 +76,8 @@
 
 - 2026-10-22 接入 Harness 多角色协作层：四角色（arch/dev/test/devops）+ `/role`、`/evolve` 两个角色层指令 + 进化记录机制。是否作为长期治理基线待人工确认；确认后可考虑补 ADR-004（文档治理/开发流程类）。详见 EVO-20261022001。
 
+- 2026-10-22 登录鉴权令牌选型：不透明随机令牌 + Redis 服务端会话（sha256 入键、7 天 TTL、登出即时吊销）+ 每请求 Mongo 回查账号实现软删/降权即时生效；不引入 JWT/passport 新依赖。已建 ADR-004（Draft），实现评审通过后确认。
+
 ## 7. 已知问题
 
 问题与缺陷的跟踪入口统一为 [issues/README.md](./issues/README.md)；本节不复制清单，只放跨会话必须立刻知道的前 3 条。
@@ -84,6 +95,14 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-22 003 plan 复核、tasks 生成、analyze 闸门与 handoff（@架构组 + AI）
+
+- plan 检查：跨文件比对 + 代码库事实核对，修 7 处——澄清数 6→9、契约 FR 范围 019→021、data-model 锁定状态机病句、阶段 D 补 Mongo 回查 fail-closed、E2E 改写套件 3→2（实际仅 user-profile/user-admin 用桩）、research R8 补 Mongo 异常 401、quickstart 套件数同步。
+- tasks：生成 `specs/003-user-login/tasks.md`，36 任务（Setup 2 / Foundational 7 / US1 7 / US5 2 / US2 9 / US3 3 / US4 3 / Polish 3），全部 checkbox+图标格式；执行序 US1→US5→US2→US3→US4（@Public 先于 APP_GUARD）。
+- analyze：0 Critical/High；3 MEDIUM 已修——US5 测试描述误指 T023（应为 T022）、T014 计数 GREEN 早于 RED T031 违反宪法 III（改为 TODO 占位、计数移至 T032）、T013 补 cache.set reject→500 签发侧 fail-closed；4 LOW（plan 结构树漏 current-token decorator、成功/登出日志断言、R2 ponytail 注释、SC-007 冒烟口径）登记不堵闸门。
+- handoff：`.specify/superpowers-handoff.json` 由 002/complete 切到 003，字段填全置 `ready_for_execution`（claimed\_\* 留空），JSON 校验通过。
+- 验证：grep 无陈旧引用；纯文档/配置 [no-test]，未写生产代码。
 
 ### 2026-10-22 Harness 文档去重瘦身（@架构组 + AI）
 
