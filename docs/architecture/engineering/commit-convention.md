@@ -45,6 +45,7 @@ ci(github): ...
 - 不以句号结尾。
 - 使用祈使句或动宾结构。
 - 建议不超过 50 个字符。
+- commitlint `subject-case` 禁止 subject 以大写英文开头（sentence/start/pascal/upper-case 均被拒，如 `Foundational…`、`ADR-004…`）；含英文缩写时让中文语义在最前，例如写 `feat(auth): 鉴权 ADR 转待确认…` 而非 `ADR-004 …`。提交前可用 `echo "<message>" | npx commitlint` 自检（EVO-20261023001）。
 
 ## body
 

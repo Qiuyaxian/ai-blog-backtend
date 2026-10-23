@@ -69,6 +69,7 @@ src/modules/<domain>/
 
 - 连接经 `MongooseModule.forRootAsync` + `src/mongoose.config.ts`；`w:majority`、生产 `autoIndex:false`，禁止旁路连接。
 - 模块内用 `@InjectModel` 操作本域 Schema；MUST NOT 直接操作其他模块的 Schema。
+- 跨模块取数只允许调对方模块 `exports` 的 Service 只读方法；执行中若发现 tasks 缺对应协作口（plan 数据模型有此查询但对方未 export 方法），禁止自行 `@InjectModel` 他模块 Schema 补查询，必须登记规划偏差并把 handoff 落 `blocked` 交 arch-agent 补规划（EVO-20261023001）。
 - 查询必须带条件（软删场景带 `deletedAt:null`）；分页必须有 limit 且封顶（用户模块惯例：缺省 20、上限 50）。
 - 唯一冲突（E11000）必须在 Service 转成业务错误码，不得把驱动错误透传给客户端。
 - ObjectId 非法入参转 400；资源不存在转 404。

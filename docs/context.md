@@ -21,11 +21,11 @@
 
 - 依据：[spec](../specs/003-user-login/spec.md)、[plan](../specs/003-user-login/plan.md)、[tasks](../specs/003-user-login/tasks.md)、research/data-model/contracts/quickstart、[ADR-004](./architecture/adr/ADR-004-opaque-token-redis-session.md)（Pending）
 - 范围：用户名或邮箱+密码登录、Bearer 不透明令牌 + Redis 会话（7 天）、全局 AuthGuard 每请求回查账号（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟（锁定期对外统一 401 不回 423，真实原因只入日志；不存在标识不计数）；x-test-user 测试桩已删
-- 状态：T001–T033 完成（严格 TDD），US1→US5→US2→US3→US4 顺序交付，5 个小步提交（41c39b7/e6f080b/14c8360/6bfda58/7328e01）；handoff 仍 `executing`
+- 状态：T001–T035 完成（严格 TDD），US1→US5→US2→US3→US4 顺序交付，6 个小步提交（41c39b7/e6f080b/14c8360/6bfda58/7328e01 + 文档 e19a0c9）；T036 `/evolve` 已产出 EVO-20261023001（applied，规则归并 4 文件）；handoff 仍 `executing`
 - 已交付：`src/modules/auth/`（AuthService/AuthController/AuthGuard、LoginDto、auth.config/constants、@Public/@CurrentToken、session 类型）；UserService 只读协作口 `getAuthPrincipal` + `findLoginCredential`（执行时发现 tasks 漏列登录 $or 查询口，已补 TDD 用例）；CacheService.incrWithTtl（multi INCR+EXPIRE 原子）；AuthModule APP_GUARD 全局注册；health/root/register/login 4 处公开点；e2e-app 导出 `loginHelper/authHeader`；env `AUTH_TOKEN_TTL_SECONDS`
 - 规划偏差（执行中补，待 arch 复核）：tasks T008 只规划 `getAuthPrincipal`，登录 $or 定位无跨模块协作口；为不违反「跨模块只调 export Service」，在 UserService 增补 `findLoginCredential`（返回 `{id,passwordHash,user}`）并补单测
 - 无新第三方依赖（Node crypto + 既有 bcrypt，不引 passport/jwt）；无 Mongo Schema 变更
-- 剩余：T034 文档（进行中）、T035 全量门禁含 quickstart 手工冒烟、T036 `/evolve` + handoff complete + PR
+- 剩余：T036 收尾——由编排方 arch-agent 将 handoff 置 `complete`、OCR 评审并发 PR（执行方不自行置位）
 
 ### Harness 多 Agent 协作层（文档/配置，无生产代码）
 
@@ -95,6 +95,14 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-23 003-user-login T036 /evolve 复盘归并（@dev-agent + AI）
+
+- 目标：T001–T035 交付后执行 `/evolve`，把本 feature 复盘教训沉淀为可执行规则。
+- 产出：[EVO-20261023001](../.specify/memory/evolution/EVO-20261023001-跨模块只读协作口与commitlint-subject规则.md)（P1，applied）。
+- 规则归并（4 处）：`agents/arch-agent/AGENTS.md` plan.md 清单加「数据访问完备性：每类跨模块读取都由对方 export 的只读 Service 承载」、tasks.md 清单加「跨模块只读协作口逐查询落 RED+GREEN 任务，缺口未补齐不得 ready_for_execution」；`agents/dev-agent/AGENTS.md` 数据层规范加「执行中发现协作口缺口须登记偏差并落 blocked，禁止 @InjectModel 他模块 Schema」；`docs/architecture/engineering/commit-convention.md` subject 节补 commitlint `subject-case` 禁止大写英文开头、让中文语义在最前（含 `echo | npx commitlint` 自检）。
+- 索引：evolution-mechanism.md 索引表已登记（applied）。
+- 后续：handoff 置 complete 与 PR 由编排方 arch-agent/人工处理（执行方不自行置位）；PR 前 OCR `ocr review -B ./specs/003-user-login/checklists/requirements.md`。
 
 ### 2026-10-23 003-user-login 执行 T001–T033（@dev-agent + AI）
 

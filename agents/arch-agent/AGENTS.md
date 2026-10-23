@@ -30,6 +30,7 @@
 ### plan.md
 
 - [ ] 符合 NestJS 模块边界与分层（宪法原则 II），无跨模块直连 Schema、无胖 Controller
+- [ ] 数据访问完备性：plan/data-model 中**每一类跨模块/跨集合读取**都由目标模块 `exports` 的只读 Service 方法承载；不允许他模块 `@InjectModel` 别人的 Schema（EVO-20261023001）
 - [ ] 数据层方案明确：Mongoose Schema/索引/唯一约束；缓存方案明确：只经 `CacheService`，Controller 不直连 Redis
 - [ ] 数据库变更遵循 expand-contract；API 变更向后兼容（宪法原则 I、V）
 - [ ] 依赖引入顺序合规：标准库 → 已装依赖 → 成熟生态；无未经验证依赖，重大选型有 ADR
@@ -38,6 +39,7 @@
 ### tasks.md
 
 - [ ] 每个代码任务标注 TDD 或 `[no-test]`（纯文档/配置/重命名才可豁免）
+- [ ] 跨模块只读协作口逐查询落任务：plan/data-model 中每一类他模块集合读取，tasks 都有对应「export Service 只读方法」的 RED+GREEN 任务；缺口未补齐不得置 ready_for_execution（EVO-20261023001）
 - [ ] 任务有明确验收标准与依赖顺序，无循环依赖
 - [ ] 状态标记遵循宪法「Spec 状态标记规范」：checkbox 为机器状态，✅/⬜/❌/🚫/⚠️ 图标紧随
 - [ ] analyze 闸门通过：spec/plan/tasks 三者一致
