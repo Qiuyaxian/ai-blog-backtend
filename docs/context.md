@@ -2,7 +2,7 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-23 16:15（@dev + AI，会话：003-user-login 执行完成 T001–T033，待 T034–T036 收尾评审）
+> 最后更新：2026-10-24 01:30（@arch + AI，004-swagger-docs 规划过 analyze 闸门，待 003 收尾后切 handoff 执行）
 
 ## 1. 当前状态
 
@@ -16,6 +16,13 @@
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
+
+### Swagger 接口文档接入 004（规划完成，待 handoff 切换）
+
+- 依据：[spec](../specs/004-swagger-docs/spec.md)、[plan](../specs/004-swagger-docs/plan.md)、[tasks](../specs/004-swagger-docs/tasks.md)、research/data-model/contracts/quickstart
+- 状态：specify→plan→tasks→analyze 全完成（analyze 0 Critical/High，4 项 MEDIUM/LOW 已修），handoff **未切换**——003 仍 executing；人工决定等 003 置 complete 后再切 004 ready_for_execution，并由本会话认领按 TDD 执行
+- 范围：@nestjs/swagger ^7.4.2（已核实 peer 支持 NestJS 9，无需升级框架、不装 fastify 可选依赖）；`/api-docs` + `/api-docs-json`，local/uat 开放、production 全 404；Bearer Authorize 调试走真实全局 AuthGuard；9 个业务接口 + 3 infra 接口全量注解；新增直接生产依赖恰好 1 个；零运行时行为变更、无 DB/缓存变更
+- 关键设计：横切落 `src/common/swagger/`（`isSwaggerEnabled` 纯函数 + `setupSwagger`，main.ts 与 e2e-app 共用）；env 新增 `SWAGGER_ENABLED`（缺省按 NODE_ENV，production 关）；响应文档模型集中 response-schemas.ts；契约见 `specs/004-swagger-docs/contracts/api-contract.md`；待建 ADR-005
 
 ### 用户登录鉴权 003（实现完成，待评审收尾）
 
@@ -95,6 +102,16 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-24 004-swagger-docs Spec-Kit 规划全流程（@arch-agent + AI）
+
+- 目标：新需求「新增 swagger 说明文档，使用 @nestjs/swagger ^7.4.2」走完 specify→plan→tasks→analyze。
+- 版本核实：npm 官方源查询 7.4.2 peerDependencies 为 `@nestjs/common/core ^9||^10`、`reflect-metadata ^0.1.12||^0.2.0`，与本仓 NestJS 9 兼容，无需降级 6.x 或升级框架；`@fastify/static` optional peer 不装。
+- 澄清 4 项：范围=接入+全量注解（9 业务接口 auth/users + infra）；环境=local/uat 开、production 404；鉴权=Bearer Authorize 调试；路径=`/api-docs`（文档源 `/api-docs-json`）。
+- 产出：`specs/004-swagger-docs/` spec（3 US：完整文档 P1/Bearer 调试 P2/生产关闭 P1，FR-001–016，SC-001–008）、plan（宪法五原则全过、结构/env 决策）、research R1–R8（开关纯函数、不 setup 即 404、鉴权元数据与运行时守卫分离、main/e2e 同装配函数等）、data-model（无持久化实体）、contracts/api-contract（9 接口呈现契约+错误码以 service/filter 实际抛出核实）、quickstart（单测 8 例+E2E A/B 组+手工冒烟）、tasks 30 个（TDD：开关纯函数 RED、文档源内容 E2E RED、production 404 RED；文档/env/ADR [no-test]）、checklists/requirements.md 16 项全过。
+- analyze：0 Critical/High；修 4 项——T006 验收「暂 404」矛盾改为「UI 空骨架」、T022 补 `.env.production` 指向 localhost/ai_blog 的环境隔离（create 前覆盖 MONGODB_URI=127.0.0.1/ai_blog_test + Redis 键）、typo swaggger→swagger、T019 RED 顺序说明。
+- handoff：保持指向 003（executing，他会话 claimed），未切换；人工决定 003 complete 后再置 004 ready_for_execution 并由本会话认领执行（dev-agent，T001 起从 develop 切 feat/004-swagger-docs）。
+- 验证：规划阶段纯文档 `[no-test]`；未写生产代码、未装依赖、未提交。
 
 ### 2026-10-23 003-user-login T036 /evolve 复盘归并（@dev-agent + AI）
 

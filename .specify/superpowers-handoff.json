@@ -1,11 +1,11 @@
 {
-  "feature_directory": "specs/003-user-login",
-  "source_of_truth": "specs/003-user-login",
-  "tasks_file": "specs/003-user-login/tasks.md",
+  "feature_directory": "specs/004-swagger-docs",
+  "source_of_truth": "specs/004-swagger-docs",
+  "tasks_file": "specs/004-swagger-docs/tasks.md",
   "constitution": ".specify/memory/constitution.md",
   "status": "executing",
-  "claimed_by": "cursor-agent:spec-kit-superpowers#003-user-login",
-  "claimed_at": "2026-10-22T23:09:00+08:00",
+  "claimed_by": "cursor-agent:dev-agent#004-swagger-docs",
+  "claimed_at": "2026-10-24T02:06:00+08:00",
   "reason": "",
-  "last_updated": "2026-10-22T23:09:00+08:00"
+  "last_updated": "2026-10-24T02:06:00+08:00"
 }

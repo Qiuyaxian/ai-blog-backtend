@@ -135,7 +135,7 @@ description: 'Task list for 003-user-login'
 
 - [x] ✅ T034 [no-test] 文档同步（同 PR）：ADR-004 状态 Draft → Pending 并核对正文与落地一致（令牌形态、每请求回查、锁定统一 401）；`docs/context.md` 更新"进行中工作/会话记录"（含 x-test-user 桩已删、新增 auth 模块与 CacheService.incrWithTtl）；`docs/architecture/data-flows.md` 补登录链路（如该文件登记关键数据流）；契约 `specs/003-user-login/contracts/auth-api.md` 与最终响应字段核对一遍。
 - [x] ✅ T035 全量验证（证据驱动，留存真实输出）：`pnpm lint`、`pnpm test`、`pnpm build` 退出码 0；本地起 redis + mongod 后 `pnpm test:e2e -- --runInBand` 全绿；按 `specs/003-user-login/quickstart.md` §3 跑手工 curl 冒烟（注册/用户名+邮箱登录/受保护访问/401/登出/锁定统一 401 + `redis-cli KEYS 'local:auth:*'`）；确认响应与日志无密码、登录成功体外无令牌、日志无完整令牌（SC-006）。
-- [ ] ⬜ T036 [no-test] 流程收尾：执行 `/evolve` 产出复盘记录并按机制归并（✅ 已完成：EVO-20261023001 applied，规则归并 arch/dev AGENTS + commit-convention，提交 dbc33df）；由编排方将 `.specify/superpowers-handoff.json` 置 `complete`（执行方不得自行置位）；按 §6.7 Conventional Commits 小步提交，发 PR 请 arch-agent 审查（OCR：`ocr review -B ./specs/003-user-login/checklists/requirements.md`）。
+- [x] ✅ T036 [no-test] 流程收尾：执行 `/evolve` 产出复盘记录并按机制归并（✅ 已完成：EVO-20261023001 applied，规则归并 arch/dev AGENTS + commit-convention，提交 dbc33df）；编排方已将 `.specify/superpowers-handoff.json` 置 `complete`（2026-10-24，人工确认 003 收尾完成）；按 §6.7 Conventional Commits 小步提交，发 PR 请 arch-agent 审查（OCR：`ocr review -B ./specs/003-user-login/checklists/requirements.md`）。
 
 ---
 
