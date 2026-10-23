@@ -268,4 +268,95 @@ describe('POST /auth/login (e2e)', () => {
         .expect(200);
     });
   });
+
+  describe('US4 login failure lockout', () => {
+    async function findUserId(usernameLower: string): Promise<string> {
+      const doc = await conn.collection('users').findOne({ usernameLower });
+      expect(doc).not.toBeNull();
+      if (!doc) {
+        throw new Error(`fixture user ${usernameLower} not found`);
+      }
+      return String(doc._id);
+    }
+
+    it('locks after 5 consecutive failures: 6th attempt with correct password still 401, lock key exists', async () => {
+      await register();
+      const userId = await findUserId('alice');
+      const lockKey = `auth:lock:${userId}`;
+      const failKey = `auth:fail:${userId}`;
+      sessionKeys.push(lockKey, failKey);
+
+      const first = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ identifier: 'alice', password: 'wrongpass1' })
+        .expect(401);
+
+      // 再错 4 次（共 5 次）
+      for (let i = 0; i < 4; i++) {
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ identifier: 'alice', password: 'wrongpass1' })
+          .expect(401);
+      }
+
+      // 第 6 次：即使密码正确，锁定期仍 401，且响应体与密码错误字节级同构
+      const sixth = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ identifier: 'alice', password: 'abc12345' })
+        .expect(401);
+      expect(sixth.body).toEqual(first.body);
+      expect(JSON.stringify(sixth.body)).not.toMatch(
+        /LOCKED|423|remaining|locked/i,
+      );
+
+      // 锁定键存在于 Redis（不在 Mongo）
+      await expect(cache.get<string>(lockKey)).resolves.toBe('1');
+    });
+
+    it('never creates fail/lock keys for unknown identifiers; real account still logs in', async () => {
+      await register();
+      const aliceId = await findUserId('alice');
+      sessionKeys.push(`auth:fail:${aliceId}`, `auth:lock:${aliceId}`);
+
+      for (let i = 0; i < 6; i++) {
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ identifier: 'ghost-user', password: 'wrongpass1' })
+          .expect(401);
+      }
+
+      // 不存在标识无任何计数键（fail/lock 都不写）
+      const ghostId = '65ab000000000000000000ff';
+      await expect(cache.get(`auth:fail:${ghostId}`)).resolves.toBeNull();
+      await expect(cache.get(`auth:lock:${ghostId}`)).resolves.toBeNull();
+
+      // 真实账号不受影响，可正常登录
+      const ok = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ identifier: 'alice', password: 'abc12345' })
+        .expect(200);
+      rememberSessionKey(ok.body.token);
+    });
+
+    it('isolates lockout per account: locking A does not block B', async () => {
+      await register();
+      await register({ username: 'Bella', email: 'bella@example.com' });
+      const aId = await findUserId('alice');
+      sessionKeys.push(`auth:fail:${aId}`, `auth:lock:${aId}`);
+
+      for (let i = 0; i < 5; i++) {
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ identifier: 'alice', password: 'wrongpass1' })
+          .expect(401);
+      }
+
+      // 账号 B 仍可正常登录
+      const loginB = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ identifier: 'bella', password: 'abc12345' })
+        .expect(200);
+      rememberSessionKey(loginB.body.token);
+    });
+  });
 });

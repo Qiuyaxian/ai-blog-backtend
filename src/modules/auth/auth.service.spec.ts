@@ -3,7 +3,13 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { CacheService } from '../../common/cache/cache.service';
 import { UserService } from '../user/user.service';
-import { AUTH_FAIL_PREFIX, AUTH_SESSION_PREFIX } from './auth.constants';
+import {
+  AUTH_FAIL_PREFIX,
+  AUTH_LOCK_PREFIX,
+  AUTH_SESSION_PREFIX,
+  FAIL_THRESHOLD,
+  LOCK_TTL_SECONDS,
+} from './auth.constants';
 import { AuthService } from './auth.service';
 
 jest.mock('bcrypt', () => ({
@@ -46,8 +52,9 @@ function setup(overrides: {
     set: jest
       .fn()
       .mockImplementation(overrides.cacheSetImpl ?? (async () => undefined)),
-    get: jest.fn(),
+    get: jest.fn().mockResolvedValue(null),
     del: jest.fn().mockResolvedValue(undefined),
+    incrWithTtl: jest.fn(),
   };
   const config = {
     get: jest
@@ -160,6 +167,105 @@ describe('AuthService.login', () => {
     await expect(
       service.login({ identifier: 'alice', password: 'secret123' }),
     ).rejects.toThrow('bcrypt boom');
+  });
+});
+
+describe('AuthService.login lockout (US4)', () => {
+  function setupLock(overrides: {
+    locked?: boolean;
+    compare?: boolean;
+    incrResult?: number;
+    getImpl?: (key: string) => Promise<unknown>;
+  }) {
+    const findLoginCredential = jest.fn().mockResolvedValue(credential);
+    const set = jest.fn().mockResolvedValue(undefined);
+    const get = jest
+      .fn()
+      .mockImplementation(
+        overrides.getImpl ??
+          (async (key: string) =>
+            key === AUTH_LOCK_PREFIX + userId && overrides.locked ? '1' : null),
+      );
+    const del = jest.fn().mockResolvedValue(undefined);
+    const incrWithTtl = jest.fn().mockResolvedValue(overrides.incrResult ?? 1);
+    const cache = { set, get, del, incrWithTtl };
+    // @ts-expect-error 注入最小 UserService 桩
+    const userService: UserService = { findLoginCredential };
+    const config = {
+      get: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          key === 'AUTH_TOKEN_TTL_SECONDS' ? String(TTL) : undefined,
+        ),
+    };
+    // @ts-expect-error 注入最小桩
+    const service = new AuthService(cache as CacheService, userService, config);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(overrides.compare ?? false);
+    return { service, cache, findLoginCredential, set, get, del, incrWithTtl };
+  }
+
+  const dto = { identifier: 'alice', password: 'wrongpass1' };
+
+  it('increments the sliding fail counter on wrong password (counts 1..4 do not lock)', async () => {
+    const { service, incrWithTtl, set } = setupLock({ incrResult: 3 });
+    await expect(service.login(dto)).rejects.toMatchObject({
+      status: 401,
+      message: 'INVALID_CREDENTIALS',
+    });
+    expect(incrWithTtl).toHaveBeenCalledWith(
+      AUTH_FAIL_PREFIX + userId,
+      LOCK_TTL_SECONDS,
+    );
+    // 未到阈值，不置锁、不写会话
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('sets the lock key when the counter reaches FAIL_THRESHOLD (4 -> 5)', async () => {
+    const { service, incrWithTtl, set } = setupLock({
+      incrResult: FAIL_THRESHOLD,
+    });
+    await expect(service.login(dto)).rejects.toMatchObject({
+      message: 'INVALID_CREDENTIALS',
+    });
+    expect(incrWithTtl).toHaveBeenCalledWith(
+      AUTH_FAIL_PREFIX + userId,
+      LOCK_TTL_SECONDS,
+    );
+    expect(set).toHaveBeenCalledWith(
+      AUTH_LOCK_PREFIX + userId,
+      '1',
+      LOCK_TTL_SECONDS,
+    );
+  });
+
+  it('locked account: rejects even the correct password after one bcrypt, writes no fail/lock keys', async () => {
+    const logSpy = jest.spyOn(AuthService.prototype, 'logLockHit' as never);
+    const { service, incrWithTtl, set, del } = setupLock({
+      locked: true,
+      compare: true,
+    });
+    await expect(
+      service.login({ identifier: 'alice', password: 'correct-pass1' }),
+    ).rejects.toMatchObject({
+      status: 401,
+      message: 'INVALID_CREDENTIALS',
+    });
+    expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+    expect(incrWithTtl).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+    // 锁定期不置锁（不延长）：仅登录成功路径与第 5 次失败会 set，锁内 set 零调用
+    expect(set).not.toHaveBeenCalled();
+    // 服务端记录真实原因码，日志参数不含密码/令牌
+    expect(logSpy).toHaveBeenCalledWith(userId);
+    const serialized = JSON.stringify(logSpy.mock.calls);
+    expect(serialized).not.toContain('correct-pass1');
+    logSpy.mockRestore();
+  });
+
+  it('successful login deletes the fail counter key', async () => {
+    const { service, del } = setupLock({ compare: true });
+    await service.login({ identifier: 'alice', password: 'correct-pass1' });
+    expect(del).toHaveBeenCalledWith(AUTH_FAIL_PREFIX + userId);
   });
 });
 

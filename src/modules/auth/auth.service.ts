@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
@@ -6,7 +6,13 @@ import { CacheService } from '../../common/cache/cache.service';
 import { UserResponseDto } from '../user/dto/user-response.dto';
 import { UserService } from '../user/user.service';
 import { getAuthTokenTtlSeconds } from './auth.config';
-import { AUTH_FAIL_PREFIX, AUTH_SESSION_PREFIX } from './auth.constants';
+import {
+  AUTH_FAIL_PREFIX,
+  AUTH_LOCK_PREFIX,
+  AUTH_SESSION_PREFIX,
+  FAIL_THRESHOLD,
+  LOCK_TTL_SECONDS,
+} from './auth.constants';
 import { LoginDto } from './dto/login.dto';
 import { SessionPayload } from './session.interface';
 
@@ -27,6 +33,8 @@ const DUMMY_BCRYPT_HASH =
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly cache: CacheService,
     private readonly userService: UserService,
@@ -38,11 +46,28 @@ export class AuthService {
     const key = dto.identifier.trim().toLowerCase();
     const credential = await this.userService.findLoginCredential(key);
 
-    // 账号不存在/软删：仍执行一次 bcrypt 比对均化响应时序，防止账号枚举（research R5）
-    const passwordHash = credential?.passwordHash ?? DUMMY_BCRYPT_HASH;
-    const matched = await bcrypt.compare(dto.password, passwordHash);
-    if (!credential || !matched) {
-      // TODO(US4/T032): 失败计数 incrWithTtl + lock 键判定
+    // 不存在标识永不计数（FR-013 澄清）：走 dummy bcrypt 均化时序后统一 401
+    if (!credential) {
+      await bcrypt.compare(dto.password, DUMMY_BCRYPT_HASH);
+      throw new UnauthorizedException('INVALID_CREDENTIALS');
+    }
+
+    // 锁定期：仍执行一次 bcrypt 均化时序，但不计次/不延长/不清零（plan 风险 R3）
+    const lockKey = AUTH_LOCK_PREFIX + credential.id;
+    const locked = (await this.cache.get<string>(lockKey)) !== null;
+    const matched = await bcrypt.compare(dto.password, credential.passwordHash);
+    if (locked) {
+      this.logLockHit(credential.id);
+      throw new UnauthorizedException('INVALID_CREDENTIALS');
+    }
+
+    if (!matched) {
+      // 滑动失败计数：每次失败 INCR + 刷新 900s 窗口；第 5 次置固定窗口锁
+      const failKey = AUTH_FAIL_PREFIX + credential.id;
+      const count = await this.cache.incrWithTtl(failKey, LOCK_TTL_SECONDS);
+      if (count >= FAIL_THRESHOLD) {
+        await this.cache.set(lockKey, '1', LOCK_TTL_SECONDS);
+      }
       throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
 
@@ -63,6 +88,16 @@ export class AuthService {
       expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
       user: credential.user,
     };
+  }
+
+  /**
+   * 锁定命中安全日志：真实原因码只入服务端日志（可按 requestId 关联），
+   * 对外仍回统一 401（FR-006，防账号枚举/主动锁死他人）。不记录密码/令牌。
+   */
+  logLockHit(userId: string): void {
+    this.logger.warn(
+      `login rejected: account locked, code=ACCOUNT_LOCKED, userId=${userId}`,
+    );
   }
 
   /**

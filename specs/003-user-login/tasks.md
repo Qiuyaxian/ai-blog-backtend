@@ -121,9 +121,9 @@ description: 'Task list for 003-user-login'
 
 **Independent test**: 单测伪造计数到 4→ 第 5 次置 lock 键；锁定期正确密码也 401 且响应体与密码错误字节级同构、logger 记录锁定原因、不触碰 fail 键；成功登录 DEL fail 键；E2E 连错 5 次后第 6 次正确密码仍 401，`redis-cli`/CacheService 可见 lock 键，不存在标识刷失败不产生任何键。
 
-- [ ] ⬜ T031 [P] [US4] RED：在 `src/modules/auth/auth.service.spec.ts` 增补锁定用例——前 4 次失败仅 `incrWithTtl('auth:fail:<id>',900)`；计数第 5 次（mock 返回 5）以 `cache.set('auth:lock:<id>',1,900)` 置锁；锁键命中时：即使 bcrypt 通过也抛 `INVALID_CREDENTIALS`、**不**调用 incrWithTtl/del（不延长不清零）、以结构化日志记录锁定命中（断言 logger 收到真实原因码，且不含密码/令牌）；成功登录调用 `cache.del` fail 键；不存在标识全程不触碰 fail/lock 键（与 T013 呼应）；锁定 TTL 用常量 900（data-model §2）。
-- [ ] ⬜ T032 [US4] GREEN：补全 `auth.service.ts login` 失败计数与锁定路径（替换 T014 的 TODO；T031 为其 RED，先红后绿）——定位账号后先查 lock 键（命中记安全日志，**仍执行一次 bcrypt 比对均化时序**，research R5，然后统一 401）；密码错误走 `incrWithTtl` 滑动刷新，计数 4→5 时 `set` lock 键；成功 DEL fail 键；锁定期分支不调用任何计数/锁定写操作（plan 风险 R3）。
-- [ ] ⬜ T033 [P] [US4] 在 `test/auth-login.e2e-spec.ts` 增补：同一真实账号连错 5 次均 401，第 6 次正确密码仍 401 且响应体与前 5 次同构（不出现 LOCKED/423/剩余时间字样）；经注入的 `CacheService.get('auth:lock:<userId>')` 断言锁定键存在（键在 Redis，不在 Mongo；userId 由造数响应获得）；不存在标识连打 6 次后真实账号仍可正常登录且无 `auth:fail:*` 残留键；账号 A 锁定不影响账号 B 登录（FR-013/006；用例尾部经 CacheService 删该用例的 `auth:fail:*`、`auth:lock:*` 逻辑键，禁止 flushdb）。锁定期满解除由 T031 单测以短 TTL/时钟覆盖，E2E 不等待 15 分钟。
+- [x] ✅ T031 [P] [US4] RED：在 `src/modules/auth/auth.service.spec.ts` 增补锁定用例——前 4 次失败仅 `incrWithTtl('auth:fail:<id>',900)`；计数第 5 次（mock 返回 5）以 `cache.set('auth:lock:<id>',1,900)` 置锁；锁键命中时：即使 bcrypt 通过也抛 `INVALID_CREDENTIALS`、**不**调用 incrWithTtl/del（不延长不清零）、以结构化日志记录锁定命中（断言 logger 收到真实原因码，且不含密码/令牌）；成功登录调用 `cache.del` fail 键；不存在标识全程不触碰 fail/lock 键（与 T013 呼应）；锁定 TTL 用常量 900（data-model §2）。
+- [x] ✅ T032 [US4] GREEN：补全 `auth.service.ts login` 失败计数与锁定路径（替换 T014 的 TODO；T031 为其 RED，先红后绿）——定位账号后先查 lock 键（命中记安全日志，**仍执行一次 bcrypt 比对均化时序**，research R5，然后统一 401）；密码错误走 `incrWithTtl` 滑动刷新，计数 4→5 时 `set` lock 键；成功 DEL fail 键；锁定期分支不调用任何计数/锁定写操作（plan 风险 R3）。
+- [x] ✅ T033 [P] [US4] 在 `test/auth-login.e2e-spec.ts` 增补：同一真实账号连错 5 次均 401，第 6 次正确密码仍 401 且响应体与前 5 次同构（不出现 LOCKED/423/剩余时间字样）；经注入的 `CacheService.get('auth:lock:<userId>')` 断言锁定键存在（键在 Redis，不在 Mongo；userId 由造数响应获得）；不存在标识连打 6 次后真实账号仍可正常登录且无 `auth:fail:*` 残留键；账号 A 锁定不影响账号 B 登录（FR-013/006；用例尾部经 CacheService 删该用例的 `auth:fail:*`、`auth:lock:*` 逻辑键，禁止 flushdb）。锁定期满解除由 T031 单测以短 TTL/时钟覆盖，E2E 不等待 15 分钟。
 
 **Checkpoint**: 防爆破全链路工作且对外零枚举差异；quickstart §3 锁定冒烟脚本可原样跑通。
 
