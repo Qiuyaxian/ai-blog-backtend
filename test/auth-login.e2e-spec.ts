@@ -1,10 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { createHash } from 'crypto';
-import { Connection } from 'mongoose';
+import { Connection, Types } from 'mongoose';
 import * as request from 'supertest';
 import { CacheService } from '../src/common/cache/cache.service';
-import { createTestApp } from './helpers/e2e-app';
+import { authHeader, createTestApp } from './helpers/e2e-app';
 
 /**
  * US1 登录链路 E2E：注册 → 用户名/邮箱登录 → 401 统一错误。
@@ -113,5 +113,115 @@ describe('POST /auth/login (e2e)', () => {
       .send({ identifier: 'ghost', password: 'abc12345' })
       .expect(401);
     expect(unknown.body).toEqual(wrongPassword.body);
+  });
+
+  async function login(
+    overrides: { identifier?: string; password?: string } = {},
+  ): Promise<string> {
+    const res = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        identifier: overrides.identifier ?? 'alice',
+        password: overrides.password ?? 'abc12345',
+      })
+      .expect(200);
+    rememberSessionKey(res.body.token);
+    return res.body.token as string;
+  }
+
+  describe('US2 bearer authorization', () => {
+    it('accepts a valid token on /users/me with the correct identity', async () => {
+      const created = await register();
+      const token = await login();
+      const res = await request(app.getHttpServer())
+        .get('/users/me')
+        .set(authHeader(token))
+        .expect(200);
+      expect(res.body).toMatchObject({
+        username: created.username,
+        email: created.email,
+      });
+    });
+
+    it('returns 401 with no header or a bad token', async () => {
+      await register();
+      await request(app.getHttpServer()).get('/users/me').expect(401);
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set('Authorization', 'Bearer forged-token-value')
+        .expect(401);
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set('Authorization', 'Basic abc')
+        .expect(401);
+    });
+
+    it('returns 403 when a normal user token hits an admin route', async () => {
+      await register();
+      const token = await login();
+      await request(app.getHttpServer())
+        .get('/users')
+        .set(authHeader(token))
+        .expect(403);
+    });
+
+    it('returns 401 with the old token after the account is soft-deleted', async () => {
+      await register();
+      const token = await login();
+      const userDoc = await conn
+        .collection('users')
+        .findOne({ usernameLower: 'alice' });
+      expect(userDoc).not.toBeNull();
+      if (!userDoc) {
+        throw new Error('test fixture user not found');
+      }
+      await conn
+        .collection('users')
+        .updateOne(
+          { _id: new Types.ObjectId(userDoc._id) },
+          { $set: { deletedAt: new Date() } },
+        );
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set(authHeader(token))
+        .expect(401);
+    });
+
+    it('returns 403 on admin route after the logged-in admin is demoted directly in DB', async () => {
+      await register({ username: 'boss', email: 'boss@example.com' });
+      const adminDoc = await conn
+        .collection('users')
+        .findOne({ usernameLower: 'boss' });
+      expect(adminDoc).not.toBeNull();
+      if (!adminDoc) {
+        throw new Error('test fixture admin not found');
+      }
+      await conn
+        .collection('users')
+        .updateOne(
+          { _id: new Types.ObjectId(adminDoc._id) },
+          { $set: { isAdmin: true } },
+        );
+      const token = await login({ identifier: 'boss' });
+
+      // 降权前 admin 可访问
+      await request(app.getHttpServer())
+        .get('/users?limit=1')
+        .set(authHeader(token))
+        .expect(200);
+
+      await conn
+        .collection('users')
+        .updateOne(
+          { _id: new Types.ObjectId(adminDoc._id) },
+          { $set: { isAdmin: false } },
+        );
+
+      // 降权即时生效：同一旧令牌访问 admin 接口 403
+      await request(app.getHttpServer())
+        .get('/users?limit=1')
+        .set(authHeader(token))
+        .expect(403);
+    });
   });
 });

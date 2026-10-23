@@ -6,6 +6,7 @@ import {
   MongooseHealthIndicator,
 } from '@nestjs/terminus';
 import { RedisHealthIndicator } from '../common/cache/redis.health';
+import { Public } from '../modules/auth/decorators/public.decorator';
 
 /** readiness ping 结果节流窗口（ms），设计 §5.1：高频探针不放大 DB 抖动 */
 const PING_CACHE_TTL_MS = 5000;
@@ -23,12 +24,14 @@ export class HealthController {
   ) {}
 
   /** liveness：只反映进程存活，不打 DB（设计 §5.1，避免 DB 抖动引发 Pod 反复重启） */
+  @Public()
   @Get('live')
   live(): { status: 'up' } {
     return { status: 'up' };
   }
 
   /** readiness：MongoDB 与 Redis ping，5s 内复用上次结果 */
+  @Public()
   @Get('ready')
   @HealthCheck()
   ready(): Promise<HealthCheckResult> {

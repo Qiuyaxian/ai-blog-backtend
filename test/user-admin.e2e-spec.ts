@@ -1,28 +1,30 @@
 import { INestApplication } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
+import { createHash } from 'crypto';
 import { Connection, Types } from 'mongoose';
 import * as request from 'supertest';
-import { createTestApp } from './helpers/e2e-app';
+import { CacheService } from '../src/common/cache/cache.service';
+import { authHeader, createTestApp, loginHelper } from './helpers/e2e-app';
 
 describe('admin user management', () => {
   let app: INestApplication;
   let conn: Connection;
-  const adminHeader = () => ({
-    'x-test-user': JSON.stringify({ id: adminId, isAdmin: true }),
-  });
-  const userHeader = (id: string) => ({
-    'x-test-user': JSON.stringify({ id, isAdmin: false }),
-  });
+  let cache: CacheService;
   let adminId: string;
   let targetId: string;
+  let adminToken: string;
+  let userToken: string;
+  let sessionKeys: string[];
 
   beforeAll(async () => {
     app = await createTestApp();
     conn = app.get<Connection>(getConnectionToken());
-  });
+    cache = app.get(CacheService);
+  }, 30000);
 
   beforeEach(async () => {
     await conn.collection('users').deleteMany({});
+    sessionKeys = [];
 
     const admin = await request(app.getHttpServer())
       .post('/users')
@@ -46,6 +48,22 @@ describe('admin user management', () => {
       .send({ username: 'bob', email: 'bob@example.com', password: 'abc12345' })
       .expect(201);
     targetId = target.body.id;
+
+    adminToken = await loginHelper(app, {
+      identifier: 'root',
+      password: 'abc12345',
+    });
+    userToken = await loginHelper(app, {
+      identifier: 'bob',
+      password: 'abc12345',
+    });
+    sessionKeys.push(sessionKey(adminToken), sessionKey(userToken));
+  });
+
+  afterEach(async () => {
+    await Promise.all(
+      sessionKeys.map((key) => cache.del(key).catch(() => undefined)),
+    );
   });
 
   afterAll(async () => {
@@ -53,10 +71,14 @@ describe('admin user management', () => {
     await app.close();
   });
 
+  function sessionKey(raw: string): string {
+    return 'auth:sess:' + createHash('sha256').update(raw).digest('hex');
+  }
+
   it('admin lists users with sanitized items', async () => {
     const res = await request(app.getHttpServer())
       .get('/users?limit=10')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(200);
     expect(res.body.items.length).toBe(2);
     expect(res.body.items[0]).not.toHaveProperty('password');
@@ -66,25 +88,25 @@ describe('admin user management', () => {
   it('admin gets a single user detail; bad id -> 400, missing -> 404', async () => {
     const ok = await request(app.getHttpServer())
       .get(`/users/detail?id=${targetId}`)
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(200);
     expect(ok.body.id).toBe(targetId);
 
     await request(app.getHttpServer())
       .get('/users/detail?id=bad-id')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(400);
 
     await request(app.getHttpServer())
       .get('/users/detail?id=65ab000000000000000000ff')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(404);
   });
 
   it('promotes and demotes a user', async () => {
     const promoted = await request(app.getHttpServer())
       .post('/users/admin')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: targetId, isAdmin: true })
       .expect(200);
     expect(promoted.body.isAdmin).toBe(true);
@@ -92,7 +114,7 @@ describe('admin user management', () => {
     // 此时有两名管理员，降权 target 允许
     await request(app.getHttpServer())
       .post('/users/admin')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: targetId, isAdmin: false })
       .expect(200)
       .expect((res) => expect(res.body.isAdmin).toBe(false));
@@ -101,14 +123,14 @@ describe('admin user management', () => {
   it('protects the last admin from demotion and deletion', async () => {
     const res = await request(app.getHttpServer())
       .post('/users/admin')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: adminId, isAdmin: false })
       .expect(409);
     expect(res.body.code).toBe('LAST_ADMIN_PROTECTED');
 
     const del = await request(app.getHttpServer())
       .post('/users/delete')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: adminId })
       .expect(409);
     expect(del.body.code).toBe('LAST_ADMIN_PROTECTED');
@@ -117,14 +139,14 @@ describe('admin user management', () => {
   it('soft-deletes a user: disappears from list/detail, record remains', async () => {
     const delRes = await request(app.getHttpServer())
       .post('/users/delete')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: targetId })
       .expect(200);
     expect(delRes.body).toEqual({ id: targetId });
 
     const list = await request(app.getHttpServer())
       .get('/users')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(200);
     expect(list.body.items.map((u: { id: string }) => u.id)).not.toContain(
       targetId,
@@ -132,7 +154,7 @@ describe('admin user management', () => {
 
     await request(app.getHttpServer())
       .get(`/users/detail?id=${targetId}`)
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .expect(404);
 
     // 物理记录仍在且 deletedAt 已写
@@ -155,7 +177,7 @@ describe('admin user management', () => {
     // 重复删除 404
     await request(app.getHttpServer())
       .post('/users/delete')
-      .set(adminHeader())
+      .set(authHeader(adminToken))
       .send({ id: targetId })
       .expect(404);
   });
@@ -164,16 +186,16 @@ describe('admin user management', () => {
     await request(app.getHttpServer()).get('/users').expect(401);
     await request(app.getHttpServer())
       .get('/users')
-      .set(userHeader(targetId))
+      .set(authHeader(userToken))
       .expect(403);
     await request(app.getHttpServer())
       .post('/users/admin')
-      .set(userHeader(targetId))
+      .set(authHeader(userToken))
       .send({ id: targetId, isAdmin: true })
       .expect(403);
     await request(app.getHttpServer())
       .post('/users/delete')
-      .set(userHeader(targetId))
+      .set(authHeader(userToken))
       .send({ id: targetId })
       .expect(403);
     await request(app.getHttpServer()).post('/users/delete').expect(401);

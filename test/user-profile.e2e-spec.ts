@@ -1,21 +1,29 @@
 import { INestApplication } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { createHash } from 'crypto';
+import { Connection, Types } from 'mongoose';
 import * as request from 'supertest';
-import { createTestApp } from './helpers/e2e-app';
+import { CacheService } from '../src/common/cache/cache.service';
+import { authHeader, createTestApp, loginHelper } from './helpers/e2e-app';
 
 describe('GET/POST /users/me', () => {
   let app: INestApplication;
   let conn: Connection;
+  let cache: CacheService;
   let userId: string;
+  let token: string;
+  const credentials = { identifier: 'alice', password: 'abc12345' };
+  let sessionKeys: string[];
 
   beforeAll(async () => {
     app = await createTestApp();
     conn = app.get<Connection>(getConnectionToken());
-  });
+    cache = app.get(CacheService);
+  }, 30000);
 
   beforeEach(async () => {
     await conn.collection('users').deleteMany({});
+    sessionKeys = [];
     const res = await request(app.getHttpServer())
       .post('/users')
       .send({
@@ -25,6 +33,14 @@ describe('GET/POST /users/me', () => {
       })
       .expect(201);
     userId = res.body.id;
+    token = await loginHelper(app, credentials);
+    sessionKeys.push(sessionKey(token));
+  });
+
+  afterEach(async () => {
+    await Promise.all(
+      sessionKeys.map((key) => cache.del(key).catch(() => undefined)),
+    );
   });
 
   afterAll(async () => {
@@ -32,10 +48,14 @@ describe('GET/POST /users/me', () => {
     await app.close();
   });
 
+  function sessionKey(raw: string): string {
+    return 'auth:sess:' + createHash('sha256').update(raw).digest('hex');
+  }
+
   it('returns own profile for an authenticated user', async () => {
     const res = await request(app.getHttpServer())
       .get('/users/me')
-      .set('x-test-user', JSON.stringify({ id: userId, isAdmin: false }))
+      .set(authHeader(token))
       .expect(200);
     expect(res.body).toMatchObject({
       id: userId,
@@ -49,7 +69,7 @@ describe('GET/POST /users/me', () => {
   it('updates own email and normalizes it to lowercase', async () => {
     const res = await request(app.getHttpServer())
       .post('/users/me')
-      .set('x-test-user', JSON.stringify({ id: userId, isAdmin: false }))
+      .set(authHeader(token))
       .send({ email: 'NEW@Example.com' })
       .expect(200);
     expect(res.body.email).toBe('new@example.com');
@@ -63,39 +83,46 @@ describe('GET/POST /users/me', () => {
 
     const res = await request(app.getHttpServer())
       .post('/users/me')
-      .set('x-test-user', JSON.stringify({ id: userId, isAdmin: false }))
+      .set(authHeader(token))
       .send({ email: 'bob@example.com' })
       .expect(409);
     expect(res.body.code).toBe('EMAIL_EXISTS');
   });
 
-  it('returns 401 without the test-user header', async () => {
+  it('returns 401 without a token or with a malformed token', async () => {
     await request(app.getHttpServer()).get('/users/me').expect(401);
     await request(app.getHttpServer()).post('/users/me').send({}).expect(401);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .expect(401);
   });
 
   it('silently ignores isAdmin in the self-update body', async () => {
     // 全局白名单 forbidNonWhitelisted：多余字段直接 400，提权不可能落库
     await request(app.getHttpServer())
       .post('/users/me')
-      .set('x-test-user', JSON.stringify({ id: userId, isAdmin: false }))
+      .set(authHeader(token))
       .send({ isAdmin: true })
       .expect(400);
 
     const me = await request(app.getHttpServer())
       .get('/users/me')
-      .set('x-test-user', JSON.stringify({ id: userId, isAdmin: false }))
+      .set(authHeader(token))
       .expect(200);
     expect(me.body.isAdmin).toBe(false);
   });
 
-  it('returns 404 when the authenticated user no longer exists', async () => {
+  it('returns 401 with an old token after the account is soft-deleted', async () => {
+    await conn
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(userId) },
+        { $set: { deletedAt: new Date() } },
+      );
     await request(app.getHttpServer())
       .get('/users/me')
-      .set(
-        'x-test-user',
-        JSON.stringify({ id: '65ab000000000000000000ff', isAdmin: false }),
-      )
-      .expect(404);
+      .set(authHeader(token))
+      .expect(401);
   });
 });

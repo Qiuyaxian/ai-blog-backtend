@@ -64,4 +64,14 @@ export class AuthService {
       user: credential.user,
     };
   }
+
+  /**
+   * 按原始令牌解析会话：sha256 后查 Redis。
+   * 未命中（过期/伪造/已登出）返回 null；存储异常原样上抛，由 Guard fail-closed。
+   */
+  async resolveSession(rawToken: string): Promise<SessionPayload | null> {
+    const sessionKey =
+      AUTH_SESSION_PREFIX + createHash('sha256').update(rawToken).digest('hex');
+    return this.cache.get<SessionPayload>(sessionKey);
+  }
 }

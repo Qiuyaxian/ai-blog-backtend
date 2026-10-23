@@ -162,3 +162,42 @@ describe('AuthService.login', () => {
     ).rejects.toThrow('bcrypt boom');
   });
 });
+
+describe('AuthService.resolveSession', () => {
+  function setup(session: unknown, getReject?: Error) {
+    const get = getReject
+      ? jest.fn().mockRejectedValue(getReject)
+      : jest.fn().mockResolvedValue(session);
+    const cache = {
+      set: jest.fn(),
+      get,
+      del: jest.fn(),
+    };
+    // @ts-expect-error 注入最小桩
+    const service = new AuthService(cache as CacheService, {}, {});
+    return { service, cache, get };
+  }
+
+  it('looks up auth:sess:<sha256(rawToken)> and returns the payload on hit', async () => {
+    const rawToken = 'a'.repeat(64);
+    const payload = { sub: '65ab00000000000000000001' };
+    const { service, get } = setup(payload);
+
+    await expect(service.resolveSession(rawToken)).resolves.toEqual(payload);
+    expect(get).toHaveBeenCalledWith(
+      AUTH_SESSION_PREFIX + createHash('sha256').update(rawToken).digest('hex'),
+    );
+  });
+
+  it('returns null on miss (expired/forged/revoked)', async () => {
+    const { service } = setup(null);
+    await expect(service.resolveSession('b'.repeat(64))).resolves.toBeNull();
+  });
+
+  it('propagates Redis errors so the Guard fails closed', async () => {
+    const { service } = setup(undefined, new Error('redis down'));
+    await expect(service.resolveSession('c'.repeat(64))).rejects.toThrow(
+      'redis down',
+    );
+  });
+});
