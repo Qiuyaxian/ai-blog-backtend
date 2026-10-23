@@ -2,30 +2,30 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-22 22:57（@架构组 + AI，会话：003-user-login plan 检查/tasks/analyze/handoff，纯文档 [no-test]）
+> 最后更新：2026-10-23 16:15（@dev + AI，会话：003-user-login 执行完成 T001–T033，待 T034–T036 收尾评审）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`）已实现、验证、评审通过并 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`，T001–T021）已实现、全量验证并通过 OCR 评审（4 条意见已修复），ADR-003、集成设计与功能规格均转 Confirmed，handoff 为 complete；首个真实基础设施依赖 ioredis@5.11.1 已由人工评审安装
-- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 17 suites / 103 tests 通过、`pnpm test:e2e` 5 suites / 20 tests 通过（真实本地 mongod + redis 4.0.11，测试库 `ai_blog_test`）
+- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T033 全部完成（US1 登录/US5 注册公开/US2 全局 Guard/US3 登出/US4 防爆破），handoff 仍 `executing`，待 T034–T036 文档复核/全量门禁/evolve + PR
+- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 21 suites / 168 tests 通过、`pnpm test:e2e` 6 suites / 36 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中
 - 阻塞项：无
 - 风险：
   - E2E 依赖本地 redis-server 在运行；沙箱内 loopback 被拦时需在沙箱外执行 `pnpm test:e2e`。
-  - 登录/令牌尚未实现：E2E 靠 `test/helpers/e2e-app.ts` 的 `x-test-user` 测试桩 Guard 注入 `request.user`；认证模块落地时删除该桩（tasks T023/T027，仅 user-profile/user-admin 2 套件用桩）。
   - 访问日志只有请求级 requestId 关联，无跨服务 TraceContext 传播、无指标导出（宪法原则 V 延后项，见 §4 待决）。
   - 本地 mongod 为单节点非副本集，事务/change streams 不可验证（设计 §5.6）。
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
 
-### 用户登录鉴权 003（规划完成，待执行，未写生产代码）
+### 用户登录鉴权 003（实现完成，待评审收尾）
 
-- 依据：[spec](../specs/003-user-login/spec.md)（Draft，9 项澄清 + 安全评审）、[plan](../specs/003-user-login/plan.md)、[tasks](../specs/003-user-login/tasks.md)（36 任务）、research/data-model/contracts/quickstart、[ADR-004](./architecture/adr/ADR-004-opaque-token-redis-session.md)（Draft）
-- 范围：用户名或邮箱+密码登录、Bearer 不透明令牌 + Redis 会话（7 天）、全局 AuthGuard 每请求回查账号（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟（锁定期对外统一 401 不回 423，真实原因只入日志；不存在标识不计数）；删除 x-test-user 测试桩
-- 状态：specify/clarify/plan/tasks 已完成；`/speckit.analyze` 通过（0 Critical/High；3 MEDIUM 已修：任务引用错号、计数 GREEN 早于 RED 违反 TDD、签发侧 fail-closed 缺用例；4 LOW 留执行时处理）；handoff 已置 `ready_for_execution`（2026-10-22 22:54），等待 dev-agent 认领
-- 任务编排：US1 登录 → US5 注册打 @Public → US2 全局 Guard+删桩 → US3 登出 → US4 防爆破（顺序非 spec 编号，@Public 必须先于 APP_GUARD 注册）
-- 触碰面：新增 `src/modules/auth/`；UserModule 导出 UserService + 新增只读 `getAuthPrincipal`；CacheService 增 `incrWithTtl`；4 处公开路由打 `@Public()`；2 个用桩 E2E 改真实登录；新增 env `AUTH_TOKEN_TTL_SECONDS`
+- 依据：[spec](../specs/003-user-login/spec.md)、[plan](../specs/003-user-login/plan.md)、[tasks](../specs/003-user-login/tasks.md)、research/data-model/contracts/quickstart、[ADR-004](./architecture/adr/ADR-004-opaque-token-redis-session.md)（Pending）
+- 范围：用户名或邮箱+密码登录、Bearer 不透明令牌 + Redis 会话（7 天）、全局 AuthGuard 每请求回查账号（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟（锁定期对外统一 401 不回 423，真实原因只入日志；不存在标识不计数）；x-test-user 测试桩已删
+- 状态：T001–T033 完成（严格 TDD），US1→US5→US2→US3→US4 顺序交付，5 个小步提交（41c39b7/e6f080b/14c8360/6bfda58/7328e01）；handoff 仍 `executing`
+- 已交付：`src/modules/auth/`（AuthService/AuthController/AuthGuard、LoginDto、auth.config/constants、@Public/@CurrentToken、session 类型）；UserService 只读协作口 `getAuthPrincipal` + `findLoginCredential`（执行时发现 tasks 漏列登录 $or 查询口，已补 TDD 用例）；CacheService.incrWithTtl（multi INCR+EXPIRE 原子）；AuthModule APP_GUARD 全局注册；health/root/register/login 4 处公开点；e2e-app 导出 `loginHelper/authHeader`；env `AUTH_TOKEN_TTL_SECONDS`
+- 规划偏差（执行中补，待 arch 复核）：tasks T008 只规划 `getAuthPrincipal`，登录 $or 定位无跨模块协作口；为不违反「跨模块只调 export Service」，在 UserService 增补 `findLoginCredential`（返回 `{id,passwordHash,user}`）并补单测
 - 无新第三方依赖（Node crypto + 既有 bcrypt，不引 passport/jwt）；无 Mongo Schema 变更
+- 剩余：T034 文档（进行中）、T035 全量门禁含 quickstart 手工冒烟、T036 `/evolve` + handoff complete + PR
 
 ### Harness 多 Agent 协作层（文档/配置，无生产代码）
 
@@ -50,11 +50,11 @@
 
 ## 3. 近期完成（滚动窗口，只留最近 5 项）
 
+- 2026-10-23 用户登录鉴权 003 全量 TDD 实现（T001–T033）：不透明令牌 + Redis 服务端会话（sha256 入键、7 天 TTL）、全局 AuthGuard 默认拒绝 + 每请求回查 Mongo（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟统一 401；删除 x-test-user 桩全部 E2E 走真实登录；新增 CacheService.incrWithTtl、UserService.getAuthPrincipal/findLoginCredential；lint 0、单测 21 套件 168 项、E2E 6 套件 36 项全绿；ADR-004 Draft→Pending；5 个小步提交（41c39b7…7328e01），handoff 仍 executing 待 PR。
 - 2026-10-15 Redis 缓存基础设施全量 TDD 实现并评审通过：T001–T021；ioredis 单例模块（client 不导出）、强制 TTL 的 CacheService（含键非空守卫）、自定义健康指示器并入 /health/ready、启动 ping fail-fast、error 日志脱敏；新增 E2E `test/redis-health.e2e-spec.ts` 与 `test/setup-env.ts`（修复 E2E 未加载 .env.local）；真实 Redis 验证断线命令即败、重启后同实例自动重连、日志无密码；OCR 评审 4 条意见修复（退避文档对齐线性 times\*100）；lint 0、单测 17 套件 103 项、E2E 5 套件 20 项全绿；ADR-003、设计与 spec 转 Confirmed；提交 `cbdad4a` 推送 `feat/user_redis_init`。
 - 2026-10-14 用户模块全量实现并通过代码评审：T001–T035 按 TDD 落地；70 单测 + 18 E2E 全绿；全局过滤器/拦截器注册 main.ts；旧 app.e2e 补 NODE_ENV/MONGODB_URI；`test:e2e` 固定 --runInBand --forceExit；ADR-002、设计与 spec 转 Confirmed。
 - 2026-10-13 移除 posts 示例域：设计文档未要求任何业务集合，posts 为 AI 自选示例（YAGNI）；删除 src/posts 与 test/smoke 冒烟，接入收敛为 forRootAsync 连接 + health + shutdown hooks。
 - 2026-10-12 MongoDB 基础接入：forRootAsync 连接（池/超时/w:majority/生产 autoIndex 关）；health 模块 liveness/readiness 分离 + 5s 节流；shutdown hooks。
-- 2026-10-12 docs 去重与事实统一：删 monitoring.md 并入 observability.md；engineering/ 5 篇按真实配置重写；死链清零；统一 Node 20 / SLO 99.9% / env 自动加载口径。
 
 ## 4. 阻塞与待决
 
@@ -95,6 +95,15 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-23 003-user-login 执行 T001–T033（@dev-agent + AI）
+
+- 目标：认领 handoff（executing）后按 tasks.md 严格 TDD 交付登录鉴权全部 US。
+- 改动/结果：Foundational（incrWithTtl、auth.config、getAuthPrincipal、@Public、session 类型）→ US1 登录签发不透明令牌（AuthService/Controller/Module、LoginDto、dummy bcrypt 均时序）→ US5 注册打 @Public → US2 全局 AuthGuard（APP_GUARD 默认拒绝、Bearer→Redis 会话 →Mongo 回查 fail-closed）+ resolveSession，删除 TestUserGuard/x-test-user，e2e-app 增 loginHelper/authHeader，2 套件改真实登录 → US3 logout + @CurrentToken → US4 incrWithTtl 计数/第 5 次置锁/锁定期统一 401。
+- 规划偏差：tasks 漏列登录 $or 定位的 UserService 协作口；新增 `findLoginCredential`（返回 `{id,passwordHash,user}`）并补 2 个单测，避免 AuthService 跨模块直连 User Schema；待 arch 复核。
+- 验证证据：`pnpm lint` 0 error/warning；`pnpm test` 21 suites / 168 tests 全绿；`pnpm test:e2e` 6 suites / 36 tests 全绿（真实 mongod 27017 + redis 6379，库 ai_blog_test）；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中；`npx tsc --noEmit` 通过。
+- 提交：41c39b7（T001–T009）、e6f080b（US1/US5）、14c8360（US2）、6bfda58（US3）、7328e01（US4）。
+- 后续：T034 文档（ADR-004→Pending、data-flows/context 已更新）、T035 全量门禁 + quickstart 手工冒烟、T036 `/evolve`、handoff complete 与 PR 由编排方/人工处理。
 
 ### 2026-10-22 003 plan 复核、tasks 生成、analyze 闸门与 handoff（@架构组 + AI）
 

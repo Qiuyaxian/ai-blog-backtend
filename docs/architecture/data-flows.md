@@ -15,22 +15,34 @@
 
 ### 1. 登录（前置：拿凭证，后续写操作全靠它）
 
-- 同步链路；Redis 故障不阻断登录，降级为只发 access token，refresh 待 Redis 恢复后补。
+- 同步链路；会话写 Redis 失败即 500，**不降级**（fail-closed，FR-015）。
+- 令牌为不透明随机串，Redis 只存其 sha256 摘要对应的 `SessionPayload{sub}`（ADR-004）。
+- 账号不存在/软删仍执行一次 dummy bcrypt 比对均化时序；错误密码、不存在、锁定期对外统一 401 `INVALID_CREDENTIALS`。
+- 连续失败 5 次锁 15 分钟（计数滑动窗口 + 锁定固定窗口，键均在 Redis）；锁定期仍跑 bcrypt 但不计次/不延长，真实原因只入服务端日志。
 
 ```mermaid
 sequenceDiagram
     participant C as Client
+    participant AC as AuthController
     participant AS as AuthService
-    participant US as UsersService
+    participant US as UserService
     participant DB as MongoDB
-    participant R as Redis
-    C->>AS: POST /auth/login (凭证)
-    AS->>US: findByEmail
-    US->>DB: 查询用户
-    AS->>AS: bcrypt 校验密码
-    AS->>R: 存 refresh token（带 TTL，失败仅告警）
-    AS-->>C: access token (+ refresh token)
+    participant R as Redis/CacheService
+    C->>AC: POST /auth/login (identifier,password)
+    AC->>AS: login(LoginDto)
+    AS->>US: findLoginCredential(归一化标识)
+    US->>DB: $or usernameLower/email + deletedAt:null（+password）
+    AS->>AS: bcrypt 比对（不存在走 dummy 哈希）
+    alt 锁定期或密码错
+        AS->>R: 锁定期：不读写计数键；密码错：incrWithTtl(fail)，第 5 次 set(lock)
+        AS-->>C: 401 INVALID_CREDENTIALS（三类同构）
+    else 校验通过
+        AS->>R: del(fail) + set(auth:sess:sha256(token), {sub}, 7d TTL)
+        AS-->>C: 200 { token, expiresAt, user（脱敏） }
+    end
 ```
+
+> 鉴权回查：受保护请求经全局 `AuthGuard` 解析 Bearer → `resolveSession` 查 Redis → `UserService.getAuthPrincipal(sub)` 回查 Mongo 当前 `isAdmin`（软删即时 401、降权即时 403）→ 注入 `request.user`。登出 `POST /auth/logout` 仅 `del` 当前令牌会话键，即时吊销、多会话互不影响。
 
 ### 2. 新建分类 / 标签（阶段 2：同步重名校验 → 写库 → 失效列表缓存）
 

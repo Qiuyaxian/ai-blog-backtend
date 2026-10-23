@@ -2,9 +2,9 @@
 
 ## 状态
 
-草稿（Draft）
+待确认（Pending）
 
-> 状态枚举遵循 `AGENTS.md` §9。2026-10-22 随 003-user-login plan 阶段产出；待实现、全量验证与人工评审后转 Pending/Confirmed。
+> 状态枚举遵循 `AGENTS.md` §9。2026-10-22 随 003-user-login plan 阶段产出（Draft）；2026-10-23 落地完成（T001–T033：单测 168 / E2E 36 全绿），转 Pending 待人工评审。
 
 ## 日期
 
