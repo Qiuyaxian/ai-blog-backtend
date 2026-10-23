@@ -19,6 +19,9 @@ importers:
       '@nestjs/platform-express':
         specifier: ^9.0.0
         version: 9.4.3(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(supports-color@8.1.1)
+      '@nestjs/swagger':
+        specifier: ^7.4.2
+        version: 7.4.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)
       '@nestjs/terminus':
         specifier: '9'
         version: 9.2.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(@nestjs/mongoose@9.2.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(mongoose@6.13.11(supports-color@8.1.1))(reflect-metadata@0.1.14)(rxjs@7.8.2))(mongoose@6.13.11(supports-color@8.1.1))(reflect-metadata@0.1.14)(rxjs@7.8.2)
@@ -977,6 +980,12 @@ packages:
       }
     hasBin: true
 
+  '@microsoft/tsdoc@0.15.1':
+    resolution:
+      {
+        integrity: sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==,
+      }
+
   '@mongodb-js/saslprep@1.6.0':
     resolution:
       {
@@ -1040,6 +1049,22 @@ packages:
       '@nestjs/websockets':
         optional: true
 
+  '@nestjs/mapped-types@2.0.5':
+    resolution:
+      {
+        integrity: sha512-bSJv4pd6EY99NX9CjBIyn4TVDoSit82DUZlL4I3bqNfy5Gt+gXTa86i3I/i0iIV9P4hntcGM5GyO+FhZAhxtyg==,
+      }
+    peerDependencies:
+      '@nestjs/common': ^8.0.0 || ^9.0.0 || ^10.0.0
+      class-transformer: ^0.4.0 || ^0.5.0
+      class-validator: ^0.13.0 || ^0.14.0
+      reflect-metadata: ^0.1.12 || ^0.2.0
+    peerDependenciesMeta:
+      class-transformer:
+        optional: true
+      class-validator:
+        optional: true
+
   '@nestjs/mongoose@9.2.2':
     resolution:
       {
@@ -1068,6 +1093,26 @@ packages:
       }
     peerDependencies:
       typescript: '>=4.3.5'
+
+  '@nestjs/swagger@7.4.2':
+    resolution:
+      {
+        integrity: sha512-Mu6TEn1M/owIvAx2B4DUQObQXqo2028R2s9rSZ/hJEgBK95+doTwS0DjmVA2wTeZTyVtXOoN7CsoM5pONBzvKQ==,
+      }
+    peerDependencies:
+      '@fastify/static': ^6.0.0 || ^7.0.0
+      '@nestjs/common': ^9.0.0 || ^10.0.0
+      '@nestjs/core': ^9.0.0 || ^10.0.0
+      class-transformer: '*'
+      class-validator: '*'
+      reflect-metadata: ^0.1.12 || ^0.2.0
+    peerDependenciesMeta:
+      '@fastify/static':
+        optional: true
+      class-transformer:
+        optional: true
+      class-validator:
+        optional: true
 
   '@nestjs/terminus@9.2.2':
     resolution:
@@ -4277,6 +4322,13 @@ packages:
       }
     hasBin: true
 
+  js-yaml@4.1.0:
+    resolution:
+      {
+        integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==,
+      }
+    hasBin: true
+
   js-yaml@4.3.2:
     resolution:
       {
@@ -5126,6 +5178,12 @@ packages:
         integrity: sha512-jczvQbCUS7XmS7o+y1aEO9OBVFeZBQ1MDSEqmO7xSoPgOPoowY/SxLpZ6Vh97/8qHZOteiCKb7gkG9gA2ZUxJA==,
       }
 
+  path-to-regexp@3.3.0:
+    resolution:
+      {
+        integrity: sha512-qyCH421YQPS2WFDxDjftfc1ZR5WKQzVzqsp4n9M2kQhVOo/ByahFoUNJfl58kOcEGfQ//7weFTDhm+ss8Ecxgw==,
+      }
+
   path-type@4.0.0:
     resolution:
       {
@@ -5868,6 +5926,12 @@ packages:
         integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==,
       }
     engines: { node: '>= 0.4' }
+
+  swagger-ui-dist@5.17.14:
+    resolution:
+      {
+        integrity: sha512-CVbSfaLpstV65OnSjbXfVd6Sta3q3F7Cj/yYuvHMp1P90LztOLs6PfUnKEVAeiIVQt9u2SaPwv0LiH/OyMjHRw==,
+      }
 
   swap-case@1.1.2:
     resolution:
@@ -7283,6 +7347,8 @@ snapshots:
       - encoding
       - supports-color
 
+  '@microsoft/tsdoc@0.15.1': {}
+
   '@mongodb-js/saslprep@1.6.0':
     dependencies:
       sparse-bitfield: 3.0.3
@@ -7364,6 +7430,14 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@nestjs/mapped-types@2.0.5(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)':
+    dependencies:
+      '@nestjs/common': 9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2)
+      reflect-metadata: 0.1.14
+    optionalDependencies:
+      class-transformer: 0.5.1
+      class-validator: 0.14.4
+
   '@nestjs/mongoose@9.2.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(mongoose@6.13.11(supports-color@8.1.1))(reflect-metadata@0.1.14)(rxjs@7.8.2)':
     dependencies:
       '@nestjs/common': 9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2)
@@ -7403,6 +7477,21 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - chokidar
+
+  '@nestjs/swagger@7.4.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)':
+    dependencies:
+      '@microsoft/tsdoc': 0.15.1
+      '@nestjs/common': 9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2)
+      '@nestjs/core': 9.4.3(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/platform-express@9.4.3)(reflect-metadata@0.1.14)(rxjs@7.8.2)
+      '@nestjs/mapped-types': 2.0.5(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)
+      js-yaml: 4.1.0
+      lodash: 4.17.21
+      path-to-regexp: 3.3.0
+      reflect-metadata: 0.1.14
+      swagger-ui-dist: 5.17.14
+    optionalDependencies:
+      class-transformer: 0.5.1
+      class-validator: 0.14.4
 
   '@nestjs/terminus@9.2.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(@nestjs/mongoose@9.2.2(@nestjs/common@9.4.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@9.4.3)(mongoose@6.13.11(supports-color@8.1.1))(reflect-metadata@0.1.14)(rxjs@7.8.2))(mongoose@6.13.11(supports-color@8.1.1))(reflect-metadata@0.1.14)(rxjs@7.8.2)':
     dependencies:
@@ -9655,6 +9744,10 @@ snapshots:
       argparse: 1.0.10
       esprima: 4.0.1
 
+  js-yaml@4.1.0:
+    dependencies:
+      argparse: 2.0.1
+
   js-yaml@4.3.2:
     dependencies:
       argparse: 2.0.1
@@ -10088,6 +10181,8 @@ snapshots:
 
   path-to-regexp@3.2.0: {}
 
+  path-to-regexp@3.3.0: {}
+
   path-type@4.0.0: {}
 
   picocolors@1.1.1: {}
@@ -10507,6 +10602,8 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  swagger-ui-dist@5.17.14: {}
 
   swap-case@1.1.2:
     dependencies:

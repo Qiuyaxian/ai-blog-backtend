@@ -24,7 +24,7 @@ description: 'Task list for 004-swagger-docs'
 **Purpose**: 依赖安装与分支
 
 - [x] ✅ T001 从 `develop` 切出分支 `feat/004-swagger-docs`（禁直接改 main/develop；远程操作需人工授权）。验收：`git branch --show-current` 为目标分支。`[no-test]`（实际：仓库无 develop 分支，2026-10-24 从 003 收尾点 `3bc66a0` 切出 `feat/swagger_api_docs`）
-- [ ] ⬜ T002 安装指定依赖 `pnpm add @nestjs/swagger@^7.4.2`（沙箱拦网络/store 权限时在沙箱外执行，禁止改 CI 或 `--no-verify`）。验收：package.json dependencies 仅新增 `@nestjs/swagger`，NestJS 仍为 9.x，无 `@fastify/static`，`swagger-ui-express` 作为其传递依赖出现；`pnpm install` 退出 0。`[no-test]`（依赖安装，非生产逻辑）
+- [x] ✅ T002 安装指定依赖 `pnpm add @nestjs/swagger@^7.4.2`（沙箱拦网络/store 权限时在沙箱外执行，禁止改 CI 或 `--no-verify`）。验收：package.json dependencies 仅新增 `@nestjs/swagger`，NestJS 仍为 9.x，无 `@fastify/static`，`swagger-ui-express` 作为其传递依赖出现；`pnpm install` 退出 0。`[no-test]`（依赖安装，非生产逻辑）（实测 2026-10-24：7.4.2 运行时依赖为 `swagger-ui-dist@5.17.14` 而非 swagger-ui-express——包内自带 express loader；@fastify/static 仅 devDependencies 未安装；锁文件 +6 包，无 Nest 框架升级）
 
 ---
 
