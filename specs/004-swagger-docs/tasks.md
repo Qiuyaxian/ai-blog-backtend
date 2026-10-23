@@ -34,12 +34,12 @@ description: 'Task list for 004-swagger-docs'
 
 **⚠️ CRITICAL**: 本阶段完成前不写任何 Controller/DTO 注解。
 
-- [ ] ⬜ T003 [P] RED：新建 `src/common/swagger/swagger.spec.ts`，为 `isSwaggerEnabled(nodeEnv, override?)` 写 8 个用例（quickstart §2.1 表：local/uat/production/undefined 默认、显式 true/false 覆盖、大写 TRUE、非法值 `ture` 抛错）。先运行确认因模块不存在而失败。
-- [ ] ⬜ T004 GREEN→REFACTOR：新建 `src/common/swagger/swagger.ts` 实现 `isSwaggerEnabled`（规则见 research R1：默认 `nodeEnv !== 'production'`；`SWAGGER_ENABLED` 显式值大小写不敏感覆盖；非法值 fail-fast）。导出配置键常量 `SWAGGER_ENABLED_KEY`。验收：T003 全绿。
-- [ ] ⬜ T005 [P] 在同文件实现 `setupSwagger(app: INestApplication, config: ConfigService): void`：关闭时直接 return（R2，不 createDocument 不 setup）；开启时 `DocumentBuilder`（title/version 取 package.json version/description、tags auth/users/infra、`addBearerAuth` Opaque 方案）→ `SwaggerModule.createDocument` → `SwaggerModule.setup('api-docs', app, document)`（文档源默认即 `/api-docs-json`）。验收：纯装配无业务分支；不读 `process.env`，只经 ConfigService + 入参 nodeEnv。
-- [ ] ⬜ T006 `src/main.ts` 在 `listen` 前注入 `ConfigService`（`app.get(ConfigService)`）并调用 `setupSwagger`；加 ponytail 注释指明与 `test/helpers/e2e-app.ts` 为仅有的两个装配点，改动需同步（R4）。验收：`pnpm build:local` 通过；本地启动后访问 `/api-docs` 返回 UI 页面（文档源可加载，内容此时仅有 info/tags 骨架，业务操作在 US1 注解任务补齐）。
-- [ ] ⬜ T007 `test/helpers/e2e-app.ts` 在 `app.init()` 前调用同一 `setupSwagger(app, app.get(ConfigService))`，更新该文件既有 ponytail 同步注释。验收：既有 E2E 套件零改动仍全绿（行为不变）。
-- [ ] ⬜ T008 [P] `[no-test]` 三套 env 文件新增键：`.env.local`/`.env.uat` 写 `SWAGGER_ENABLED=true`，`.env.production` 写 `SWAGGER_ENABLED=false`（仅占位/本地值，禁止真实密钥）。同步运维手册 env 清单 `docs/operations/README.md`（新增一行：键、用途、三环境值）。
+- [x] ✅ T003 [P] RED：新建 `src/common/swagger/swagger.spec.ts`，为 `isSwaggerEnabled(nodeEnv, override?)` 写 8 个用例（quickstart §2.1 表：local/uat/production/undefined 默认、显式 true/false 覆盖、大写 TRUE、非法值 `ture` 抛错）。先运行确认因模块不存在而失败。（✅ 2026-10-24：模块缺失 TS2307 失败确认）
+- [x] ✅ T004 GREEN→REFACTOR：新建 `src/common/swagger/swagger.ts` 实现 `isSwaggerEnabled`（规则见 research R1：默认 `nodeEnv !== 'production'`；`SWAGGER_ENABLED` 显式值大小写不敏感覆盖；非法值 fail-fast）。导出配置键常量 `SWAGGER_ENABLED_KEY`。验收：T003 全绿。（✅ 8/8 绿）
+- [x] ✅ T005 [P] 在同文件实现 `setupSwagger(app: INestApplication, config: ConfigService): void`：关闭时直接 return（R2，不 createDocument 不 setup）；开启时 `DocumentBuilder`（title/version 取 package.json version/description、tags auth/users/infra、`addBearerAuth` Opaque 方案）→ `SwaggerModule.createDocument` → `SwaggerModule.setup('api-docs', app, document)`（文档源默认即 `/api-docs-json`）。验收：纯装配无业务分支；不读 `process.env`，只经 ConfigService + 入参 nodeEnv。（✅ version 经 require package.json，tsconfig 未开 resolveJsonModule）
+- [x] ✅ T006 `src/main.ts` 在 `listen` 前注入 `ConfigService`（`app.get(ConfigService)`）并调用 `setupSwagger`；加 ponytail 注释指明与 `test/helpers/e2e-app.ts` 为仅有的两个装配点，改动需同步（R4）。验收：`pnpm build:local` 通过；本地启动后访问 `/api-docs` 返回 UI 页面（文档源可加载，内容此时仅有 info/tags 骨架，业务操作在 US1 注解任务补齐）。（✅ build 0；3100 端口实测 UI 200 text/html 含 swagger-ui 标记、JSON 200、10 路径/3 tags/bearer scheme）
+- [x] ✅ T007 `test/helpers/e2e-app.ts` 在 `app.init()` 前调用同一 `setupSwagger(app, app.get(ConfigService))`，更新该文件既有 ponytail 同步注释。验收：既有 E2E 套件零改动仍全绿（行为不变）。（✅ 6 suites / 36 tests 全绿）
+- [x] ✅ T008 [P] `[no-test]` 三套 env 文件新增键：`.env.local`/`.env.uat` 写 `SWAGGER_ENABLED=true`，`.env.production` 写 `SWAGGER_ENABLED=false`（仅占位/本地值，禁止真实密钥）。同步运维手册 env 清单 `docs/operations/README.md`（新增一行：键、用途、三环境值）。（✅ 实际 env 清单权威表在 docs/development/development.md，已补行；operations/README 无 env 清单表）
 
 **Checkpoint**: 装配基建就绪；开关可单测；真实入口与测试入口同源。
 

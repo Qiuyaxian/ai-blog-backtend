@@ -1,15 +1,18 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import * as request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { AccessLogInterceptor } from '../../src/common/interceptors/access-log.interceptor';
+import { setupSwagger } from '../../src/common/swagger/swagger';
 
 /**
  * 自举测试应用。
  *
  * ponytail: 全局 ValidationPipe/Filter/Interceptor 与 src/main.ts 重复约 3 行，
  * 需手动保持同步。鉴权经 AuthModule 的 APP_GUARD 自动生效，无测试桩 Guard。
+ * Swagger 装配与 src/main.ts 共用 setupSwagger（唯一两个调用点）。
  */
 export async function createTestApp(): Promise<INestApplication> {
   process.env.NODE_ENV = 'local';
@@ -26,6 +29,7 @@ export async function createTestApp(): Promise<INestApplication> {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new AccessLogInterceptor());
+  setupSwagger(app, app.get(ConfigService));
   await app.init();
   return app;
 }
