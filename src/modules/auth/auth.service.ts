@@ -74,4 +74,13 @@ export class AuthService {
       AUTH_SESSION_PREFIX + createHash('sha256').update(rawToken).digest('hex');
     return this.cache.get<SessionPayload>(sessionKey);
   }
+
+  /**
+   * 吊销当前令牌会话：删除 sha256 会话键。DEL 幂等，键不存在也成功（FR-012）。
+   */
+  async logout(rawToken: string): Promise<void> {
+    const sessionKey =
+      AUTH_SESSION_PREFIX + createHash('sha256').update(rawToken).digest('hex');
+    await this.cache.del(sessionKey);
+  }
 }

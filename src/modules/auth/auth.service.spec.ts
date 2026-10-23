@@ -201,3 +201,35 @@ describe('AuthService.resolveSession', () => {
     );
   });
 });
+
+describe('AuthService.logout', () => {
+  function setup(delImpl?: () => Promise<void>) {
+    const del = jest
+      .fn()
+      .mockImplementation(delImpl ?? (async () => undefined));
+    const cache = { set: jest.fn(), get: jest.fn(), del };
+    // @ts-expect-error 注入最小桩
+    const service = new AuthService(cache as CacheService, {}, {});
+    return { service, cache, del };
+  }
+
+  it('deletes only auth:sess:<sha256(rawToken)> (idempotent)', async () => {
+    const rawToken = 'a'.repeat(64);
+    const { service, del } = setup();
+
+    await expect(service.logout(rawToken)).resolves.toBeUndefined();
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(del).toHaveBeenCalledWith(
+      AUTH_SESSION_PREFIX + createHash('sha256').update(rawToken).digest('hex'),
+    );
+  });
+
+  it('does not touch any other key when a different token is revoked', async () => {
+    const { service, del } = setup();
+    await service.logout('token-a');
+    expect(del).not.toHaveBeenCalledWith(
+      AUTH_SESSION_PREFIX +
+        createHash('sha256').update('token-b').digest('hex'),
+    );
+  });
+});

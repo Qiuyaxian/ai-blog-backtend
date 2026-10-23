@@ -107,9 +107,9 @@ description: 'Task list for 003-user-login'
 
 **Independent test**: 登录 → 登出 200→ 同令牌访问 401；无令牌登出 401；已失效令牌再登出按 401 处理不 500；同账号两次登录的两个令牌互不影响。
 
-- [ ] ⬜ T028 [P] [US3] RED：在 `src/modules/auth/auth.service.spec.ts` 增补 `logout(rawToken)`——以 sha256 查键 DEL（幂等，键不存在不抛）；断言只删当前令牌键，不调用其他键的 del；新建 `src/modules/auth/decorators/current-token.decorator.spec.ts` 或在 guard/控制器测试中断言装饰器从 Authorization 头取原始令牌（纯 param decorator，可用 mock ExecutionContext 验证）。
-- [ ] ⬜ T029 [US3] GREEN：新建 `src/modules/auth/decorators/current-token.decorator.ts`（`@CurrentToken()` 自定义参数装饰器，从请求头取 Bearer 原始令牌——Controller 不直接依赖 @Req，分层规则）；`auth.service.ts` 增 `logout(rawToken)`（sha256→`cache.del`）；`auth.controller.ts` 增 `@Post('logout') @HttpCode(200)`（**不打 @Public**，经全局 AuthGuard 已认证），返回 `{ success: true }`，仅注入 `@CurrentToken() token`。
-- [ ] ⬜ T030 [P] [US3] 在 `test/auth-login.e2e-spec.ts` 增补：登出 200 后同令牌 GET `/users/me` 401；无头登出 401；同账号登录两次得 token A/B，登出 A 后 B 仍 200、A 401（FR-012/018，US3 场景 1/3）。
+- [x] ✅ T028 [P] [US3] RED：在 `src/modules/auth/auth.service.spec.ts` 增补 `logout(rawToken)`——以 sha256 查键 DEL（幂等，键不存在不抛）；断言只删当前令牌键，不调用其他键的 del；新建 `src/modules/auth/decorators/current-token.decorator.spec.ts` 或在 guard/控制器测试中断言装饰器从 Authorization 头取原始令牌（纯 param decorator，可用 mock ExecutionContext 验证）。
+- [x] ✅ T029 [US3] GREEN：新建 `src/modules/auth/decorators/current-token.decorator.ts`（`@CurrentToken()` 自定义参数装饰器，从请求头取 Bearer 原始令牌——Controller 不直接依赖 @Req，分层规则）；`auth.service.ts` 增 `logout(rawToken)`（sha256→`cache.del`）；`auth.controller.ts` 增 `@Post('logout') @HttpCode(200)`（**不打 @Public**，经全局 AuthGuard 已认证），返回 `{ success: true }`，仅注入 `@CurrentToken() token`。
+- [x] ✅ T030 [P] [US3] 在 `test/auth-login.e2e-spec.ts` 增补：登出 200 后同令牌 GET `/users/me` 401；无头登出 401；同账号登录两次得 token A/B，登出 A 后 B 仍 200、A 401（FR-012/018，US3 场景 1/3）。
 
 **Checkpoint**: 即时吊销闭环成立，多会话独立。
 

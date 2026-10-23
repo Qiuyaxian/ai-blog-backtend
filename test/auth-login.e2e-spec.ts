@@ -224,4 +224,48 @@ describe('POST /auth/login (e2e)', () => {
         .expect(403);
     });
   });
+
+  describe('US3 logout', () => {
+    it('revokes the token immediately: 200 then same token 401', async () => {
+      await register();
+      const token = await login();
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set(authHeader(token))
+        .expect(200)
+        .expect((res) => expect(res.body).toEqual({ success: true }));
+
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set(authHeader(token))
+        .expect(401);
+    });
+
+    it('requires authentication for logout (no header -> 401)', async () => {
+      await request(app.getHttpServer()).post('/auth/logout').expect(401);
+    });
+
+    it('keeps session B alive when session A is logged out', async () => {
+      await register();
+      const tokenA = await login();
+      const tokenB = await login();
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set(authHeader(tokenA))
+        .expect(200);
+
+      // A 已吊销
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set(authHeader(tokenA))
+        .expect(401);
+      // B 不受影响
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set(authHeader(tokenB))
+        .expect(200);
+    });
+  });
 });
