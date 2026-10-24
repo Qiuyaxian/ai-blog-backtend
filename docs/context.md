@@ -2,12 +2,12 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-24 01:30（@arch + AI，004-swagger-docs 规划过 analyze 闸门，待 003 收尾后切 handoff 执行）
+> 最后更新：2026-10-25 00:40（@dev + AI，004-swagger-docs T001–T029 完成，全量门禁绿，待编排方 OCR/PR/handoff complete）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T033 全部完成（US1 登录/US5 注册公开/US2 全局 Guard/US3 登出/US4 防爆破），handoff 仍 `executing`，待 T034–T036 文档复核/全量门禁/evolve + PR
-- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 21 suites / 168 tests 通过、`pnpm test:e2e` 6 suites / 36 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中
+- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T036 全部完成、handoff complete；Swagger 接口文档（`specs/004-swagger-docs`）T001–T029 实现完成，handoff `executing`（本人认领），待 T030 编排方收尾（OCR/PR/complete）
+- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 23 suites / 178 tests 通过、`pnpm test:e2e` 7 suites / 46 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）、`pnpm build:local` 成功；production 模式冒烟 `/api-docs`、`/api-docs-json`、静态资源全 404，登录管线仍 401 INVALID_CREDENTIALS；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中
 - 阻塞项：无
 - 风险：
   - E2E 依赖本地 redis-server 在运行；沙箱内 loopback 被拦时需在沙箱外执行 `pnpm test:e2e`。
@@ -17,14 +17,16 @@
 
 ## 2. 进行中工作
 
-### Swagger 接口文档接入 004（规划完成，待 handoff 切换）
+### Swagger 接口文档接入 004（实现完成，待评审收尾）
 
-- 依据：[spec](../specs/004-swagger-docs/spec.md)、[plan](../specs/004-swagger-docs/plan.md)、[tasks](../specs/004-swagger-docs/tasks.md)、research/data-model/contracts/quickstart
-- 状态：specify→plan→tasks→analyze 全完成（analyze 0 Critical/High，4 项 MEDIUM/LOW 已修），handoff **未切换**——003 仍 executing；人工决定等 003 置 complete 后再切 004 ready_for_execution，并由本会话认领按 TDD 执行
-- 范围：@nestjs/swagger ^7.4.2（已核实 peer 支持 NestJS 9，无需升级框架、不装 fastify 可选依赖）；`/api-docs` + `/api-docs-json`，local/uat 开放、production 全 404；Bearer Authorize 调试走真实全局 AuthGuard；9 个业务接口 + 3 infra 接口全量注解；新增直接生产依赖恰好 1 个；零运行时行为变更、无 DB/缓存变更
-- 关键设计：横切落 `src/common/swagger/`（`isSwaggerEnabled` 纯函数 + `setupSwagger`，main.ts 与 e2e-app 共用）；env 新增 `SWAGGER_ENABLED`（缺省按 NODE_ENV，production 关）；响应文档模型集中 response-schemas.ts；契约见 `specs/004-swagger-docs/contracts/api-contract.md`；待建 ADR-005
+- 依据：[spec](../specs/004-swagger-docs/spec.md)、[plan](../specs/004-swagger-docs/plan.md)、[tasks](../specs/004-swagger-docs/tasks.md)、research/data-model/contracts/quickstart、[ADR-005](./architecture/adr/ADR-005-swagger-api-docs.md)（Pending）
+- 状态：T001–T029 完成（严格 TDD），分支 `feat/swagger_api_docs`（仓库无 develop，从 003 收尾点 3bc66a0 切出）；提交 bbda6cf/7227f67/e27c9e6/3b045fa/eceab92；handoff `executing`（dev-agent 认领），剩余 T030 由编排方收尾（OCR/PR/complete）
+- 已交付：`src/common/swagger/swagger.ts`（`isSwaggerEnabled` 纯函数 8 用例 + `setupSwagger` 关闭分支不 createDocument/不 setup）；main.ts 与 test/helpers/e2e-app.ts 共用唯一装配函数；6 个用户 DTO + LoginDto 全量 @ApiProperty（约束对齐 class-validator）；auth/user/infra 控制器注解（9 业务操作 + 3 infra，错误码只标真实会发生）；`response-schemas.ts`（Login/UserListPage/Logout/Delete/Error）；env `SWAGGER_ENABLED` 三环境值 + development.md env 清单/文档入口；ADR-005
+- 验证：lint 0；单测 23 套件 178 项（新增 swagger 10 项）；E2E 7 套件 46 项（swagger-docs 套件 10 项：文档源路径/security/模型哨兵、四态 Bearer 调试、production 全 404 + 业务管线 401）；3100 local 冒烟与 3101 production 冒烟（NODE_ENV=production + env 覆盖本地测试资源）均通过
+- 关键坑（已在测试注释/ADR 记录）：① production 404 E2E 须 `jest.isolateModules` 隔离 AppModule 的 envFilePath 闭包（setup-env 已把 NODE_ENV 锁 local）；② `@nestjs/config` 不覆盖 process.env 已有键，.env.local 的 SWAGGER_ENABLED=true 会残留，production 块须显式覆盖 false；③ @nestjs/swagger 7.4.2 express 运行时自带 swagger-ui-dist（非 swagger-ui-express）
+- 新增直接生产依赖恰好 1 个（@nestjs/swagger 7.4.2，锁文件 +6 包）；零接口行为/DB/缓存变更
 
-### 用户登录鉴权 003（实现完成，待评审收尾）
+### 用户登录鉴权 003（已收尾，handoff complete）
 
 - 依据：[spec](../specs/003-user-login/spec.md)、[plan](../specs/003-user-login/plan.md)、[tasks](../specs/003-user-login/tasks.md)、research/data-model/contracts/quickstart、[ADR-004](./architecture/adr/ADR-004-opaque-token-redis-session.md)（Pending）
 - 范围：用户名或邮箱+密码登录、Bearer 不透明令牌 + Redis 会话（7 天）、全局 AuthGuard 每请求回查账号（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟（锁定期对外统一 401 不回 423，真实原因只入日志；不存在标识不计数）；x-test-user 测试桩已删
@@ -85,6 +87,8 @@
 
 - 2026-10-22 登录鉴权令牌选型：不透明随机令牌 + Redis 服务端会话（sha256 入键、7 天 TTL、登出即时吊销）+ 每请求 Mongo 回查账号实现软删/降权即时生效；不引入 JWT/passport 新依赖。已建 ADR-004（Draft），实现评审通过后确认。
 
+- 2026-10-25 Swagger 在线接口文档：@nestjs/swagger 7.4.2 唯一新增直接依赖；`/api-docs` local/uat 开放、production UI/文档源/静态资源全 404（不 setup 即不注册路由）；双入口共用 `setupSwagger`；Bearer Authorize 走真实全局 AuthGuard 无旁路；注解不改变任何运行时行为。已建 ADR-005（Pending），实现 T001–T029 完成待评审确认。
+
 ## 7. 已知问题
 
 问题与缺陷的跟踪入口统一为 [issues/README.md](./issues/README.md)；本节不复制清单，只放跨会话必须立刻知道的前 3 条。
@@ -102,6 +106,17 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-25 004-swagger-docs TDD 执行 T001–T029（@dev-agent + AI）
+
+- 目标：003 收尾（handoff 切 004、T036 标完成、提交 bbda6cf）后，认领 handoff 按 tasks.md 严格 TDD 落地 Swagger。
+- 环境修复：pre-commit 钩子报 `mimic-fn` 缺失（onetime@6 符号链接悬空），沙箱外 `pnpm install --frozen-lockfile` 修复 node_modules（context §8 的 .pnpm 权限问题复发）。
+- 改动/结果：T002 `pnpm add @nestjs/swagger@7.4.2`（7227f67，实测 express 运行时自带 swagger-ui-dist 而非 swagger-ui-express，+6 锁文件包）；Foundational（e27c9e6）`src/common/swagger/swagger.ts` 的 `isSwaggerEnabled`（RED 8 例 →GREEN）+ `setupSwagger`（关闭直接 return 不 createDocument/setup），main.ts/e2e-app 双入口同函数，三 env 加 SWAGGER_ENABLED；US1（3b045fa）全量 DTO/控制器注解 + response-schemas，文档源 E2E 哨兵 6 例先 RED 后 GREEN；US2/US3（eceab92）四态 Bearer 调试回归 + production 独立 bootstrap 全 404 + setupSwagger 关闭分支 2 例单测。
+- 排障：production 404 E2E 两连坑——① AppModule 顶层 envFilePath 闭包在 setup-env（NODE_ENV=local）时锁定 .env.local，用 `jest.isolateModules` 隔离注册表重载；② `@nestjs/config` 不覆盖 process.env 已有键，.env.local 的 SWAGGER_ENABLED=true 残留，测试须显式覆盖 false（与 MONGODB_URI 同策略）。两坑已写入测试注释与 ADR-005。
+- 验证证据：`pnpm lint` 0；`pnpm test` 23 suites / 178 tests（新增 swagger 10）；`pnpm test:e2e` 7 suites / 46 tests（swagger-docs 套件 10）；`pnpm build:local` 成功；3100 local 冒烟 register201/401/200/403/logout200/afterlogout401/ui200；3101 production 冒烟 ui/json/asset 全 404、登录管线 401 INVALID_CREDENTIALS。
+- 文档：ADR-005（Pending）+ 架构 ADR 索引；development.md env 清单/文档入口；AGENTS.md §2.4；data-flows.md 无接口清单章节按任务备注跳过。
+- 提交：bbda6cf（规划+认领）、7227f67（依赖）、e27c9e6（Foundational）、3b045fa（US1）、eceab92（US2/US3）。
+- 后续：T030 编排方收尾——OCR `ocr review -B ./specs/004-swagger-docs/checklists/requirements.md`、handoff 置 complete、按 §6.6 发 PR（执行方不自行置位/推远程/合并）。
 
 ### 2026-10-24 004-swagger-docs Spec-Kit 规划全流程（@arch-agent + AI）
 

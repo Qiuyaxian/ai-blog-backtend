@@ -60,6 +60,11 @@
 - 数据相互独立、可重复执行；E2E 每个套件自清理。
 - 权限场景必须覆盖：未登录（无 `x-test-user` 桩/认证头）、普通用户、管理员。
 - 契约校验：HTTP 状态码、统一错误码、字段存在性与类型；错误响应不含堆栈/内部路径。
+- 多环境 E2E（同进程验证非 local 环境行为，EVO-20261025001）：
+  - 必须把 bootstrap 放进 `jest.isolateModules()` 回调并用 `require` 加载 AppModule/装配函数；禁止测试体内改 `process.env.NODE_ENV` 后动态 `import()`（模块缓存使 ConfigModule 的 envFilePath 闭包不重算）。
+  - 必须在 `NestFactory.create` 之前显式覆盖全部相关 `process.env` 键（含被测开关本身）——`@nestjs/config` 不覆盖进程环境已有键，setup-env 加载的 `.env.local` 值会残留；连接类键指向 `127.0.0.1` 本地测试资源（MONGODB_URI 用 `ai_blog_test`、Redis 独立 keyPrefix），afterEach 逐键恢复。
+  - 环境开关纯函数与「关闭即零副作用」装配分支配单测（断言依赖零调用）；E2E 只负责真实 HTTP 404/200，两层不互替。
+  - 评审例行检查：`grep -rn "process.env.NODE_ENV *=" test/` 命中文件必须同文件出现 `isolateModules`。
 - 安全校验：密码/令牌不出现在响应与日志；敏感字段（如 `select:false` 的 password）不被序列化。
 
 ### 验收通过标准

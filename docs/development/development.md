@@ -73,6 +73,12 @@ Redis 相关变量（详见 `docs/architecture/design/redis-integration-design.m
 pnpm run start:local
 ```
 
+服务默认监听 `http://127.0.0.1:3000`。接口文档（004-swagger-docs）：
+
+- local/uat 访问 Swagger UI：`http://127.0.0.1:3000/api-docs`，文档源：`/api-docs-json`。
+- 页面右上 Authorize 填入登录令牌（无需手填 `Bearer ` 前缀）即可在线调试受保护接口。
+- production 文档关闭：UI、文档源与静态资源全部 404（由 `SWAGGER_ENABLED`/`NODE_ENV` 双保险控制）。
+
 <!-- 待处理：服务默认监听 `http://localhost:3000`，当前仅根路径 `GET /` 返回 Hello World，尚无 /health 健康检查路由。 -->
 
 ## 5. 打包生产构建
@@ -98,6 +104,15 @@ pnpm run build:prod
 | `pnpm run test:cov`    | 覆盖率                    |
 | `pnpm run new`         | 使用 hygen 生成模块或文档 |
 | `pnpm run commit`      | 触发代码提交              |
+
+### 多环境 E2E（同进程切换 NODE_ENV）
+
+验证「按环境开关某能力」（如 production 关闭文档）时，`test/setup-env.ts` 已在进程启动时把 `NODE_ENV` 置为 local，且 `@nestjs/config` 不覆盖 `process.env` 已有键。必须：
+
+1. bootstrap 放进 `jest.isolateModules()` 回调用 `require` 加载 AppModule（让 `envFilePath` 重算），不要改 `NODE_ENV` 后动态 `import()`；
+2. `NestFactory.create` 前显式覆盖全部相关 env 键（含被测开关本身、MONGODB_URI 指向 `127.0.0.1/ai_blog_test`、Redis 独立 keyPrefix），结束逐键恢复。
+
+参考实现：`test/swagger-docs.e2e-spec.ts` 的 production 404 用例；规则详见 EVO-20261025001。
 
 ## 7. 更新记录
 

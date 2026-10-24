@@ -68,7 +68,7 @@ pnpm run start:local
 
 ### 2.4 常用命令
 
-- 本地启动：`pnpm run start:local`。
+- 本地启动：`pnpm run start:local`；启动后 local/uat 访问接口文档 `http://127.0.0.1:3000/api-docs`（production 关闭，详见 004-swagger-docs / ADR-005）。
 - 本地打包：`pnpm run build:local`。
 - 本地测试：`pnpm run test`、`pnpm run test:e2e`。
 - 检查与格式化 ：`pnpm run lint`、`pnpm run format`。

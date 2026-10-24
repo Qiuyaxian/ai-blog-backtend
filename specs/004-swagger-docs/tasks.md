@@ -111,11 +111,11 @@ description: 'Task list for 004-swagger-docs'
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] ⬜ T025 `[no-test]` 建 ADR-005 `docs/architecture/adr/ADR-005-swagger-api-docs.md`（组件选型与 Nest9 兼容性证据、环境暴露策略、Bearer 调试无旁路、与契约漂移控制），先 Pending；在 `docs/architecture/README.md` ADR 索引与 `docs/index.md` 登记。
-- [ ] ⬜ T026 `[no-test]` 更新 `docs/architecture/data-flows.md`（如其中有接口清单/工具章节，补一句文档入口 `/api-docs`，无则跳过并在任务备注说明）；更新 `AGENTS.md` §2.4 常用命令附近或开发指南加入「查看接口文档：local/uat 访问 /api-docs，prod 关闭」。
-- [ ] ⬜ T027 全量门禁（verification-before-completion，证据贴本任务）：`pnpm lint && pnpm test && pnpm test:e2e && pnpm build:local`，退出码全 0；记录套件/用例数与新增数；核对 SC-001–SC-008。
-- [ ] ⬜ T028 按 quickstart §3 完成本地手工冒烟（含 production 404），更新 `docs/context.md`（进行中工作/会话记录/决策草稿区加 ADR-005 指针）。
-- [ ] ⬜ T029 执行 `/evolve`：产出或归并本次复盘（重点候选：注解约束与 class-validator 同源的评审项、main/e2e 双入口装配同步），规则归并权威文件后 EVO 置 applied。
+- [x] ✅ T025 `[no-test]` 建 ADR-005 `docs/architecture/adr/ADR-005-swagger-api-docs.md`（组件选型与 Nest9 兼容性证据、环境暴露策略、Bearer 调试无旁路、与契约漂移控制），先 Pending；在 `docs/architecture/README.md` ADR 索引与 `docs/index.md` 登记。 （✅ ADR-005 Pending 已建：选型/兼容证据/production 404 机制/双入口/Bearer 无旁路/防漂移；架构 README ADR 索引已登记；docs/index 经 ADR 索引锚点指向）
+- [x] ✅ T026 `[no-test]` 更新 `docs/architecture/data-flows.md`（如其中有接口清单/工具章节，补一句文档入口 `/api-docs`，无则跳过并在任务备注说明）；更新 `AGENTS.md` §2.4 常用命令附近或开发指南加入「查看接口文档：local/uat 访问 /api-docs，prod 关闭」。 （✅ development.md §4 补文档入口 + §6 补多环境 E2E 模式；AGENTS.md §2.4 补 /api-docs；data-flows.md 无接口清单/工具章节，按任务约定跳过）
+- [x] ✅ T027 全量门禁（verification-before-completion，证据贴本任务）：`pnpm lint && pnpm test && pnpm test:e2e && pnpm build:local`，退出码全 0；记录套件/用例数与新增数；核对 SC-001–SC-008。 （✅ lint 0；单测 23 suites/178 tests；E2E 7 suites/46 tests；build:local 成功，退出码全 0）
+- [x] ✅ T028 按 quickstart §3 完成本地手工冒烟（含 production 404），更新 `docs/context.md`（进行中工作/会话记录/决策草稿区加 ADR-005 指针）。 （✅ 3100 local 冒烟四态+UI；3101 production（NODE_ENV=production+env 覆盖本地测试资源）ui/json/asset 全 404、登录 401 INVALID_CREDENTIALS；context.md 已更新进行中/会话/决策草稿）
+- [x] ✅ T029 执行 `/evolve`：产出或归并本次复盘（重点候选：注解约束与 class-validator 同源的评审项、main/e2e 双入口装配同步），规则归并权威文件后 EVO 置 applied。 （✅ EVO-20261025001 applied：多环境 E2E 用 jest.isolateModules + create 前覆盖全部 env 键；规则归并 agents/test-agent/AGENTS.md 与 development.md，机制索引已登记；commitlint 大写与沙箱 .pnpm 已被既有规则/context 覆盖，不重复记录）
 - [ ] ⬜ T030 编排方收尾：handoff 置 `complete`、OCR 评审（`ocr review -B ./specs/004-swagger-docs/checklists/requirements.md`）、按 §6.6 发起 PR（执行方不自行置 complete/合并/推远程）。
 
 ---
