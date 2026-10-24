@@ -53,19 +53,19 @@ description: 'Task list for 004-swagger-docs'
 
 ### Tests for User Story 1（先写，先失败）
 
-- [ ] ⬜ T009 RED：新建 `test/swagger-docs.e2e-spec.ts`（经 `createTestApp` 自举，--runInBand，真实本地 mongod+redis，库 `ai_blog_test`）。A1：`GET /api-docs` 200 且正文含 swagger-ui 标记；`GET /api-docs-json` 200。先确认失败（T005 装配已挂但注解未加时路径已存在——故本用例在 T007 后即通过，真正 RED 点放 T010/T011 内容断言）。
-- [ ] ⬜ T010 RED（内容）：文档源 JSON 断言——`info.title/version` 非空；`paths` 含 9 个业务路径+方法与 3 个 infra 路径（清单见 contracts §1/§2/§3）；`components.securitySchemes.Bearer.scheme==='bearer'`；受保护 7 处 operation 的 `security` 含 Bearer、login/register 无 security。此时因无注解必须失败。
-- [ ] ⬜ T011 RED（模型与防漂移哨兵）：文档源断言——`LoginDto.password` minLength=8/maxLength=64；`CreateUserDto.password.pattern` 非空且与 DTO 正则同义；`UserResponseDto` schema 属性集合恰为 6 个公开字段（不含 password/usernameLower/deletedAt）；`ErrorResponse` 含 code/message/statusCode。失败确认。
+- [x] ✅ T009 RED：新建 `test/swagger-docs.e2e-spec.ts`（经 `createTestApp` 自举，--runInBand，真实本地 mongod+redis，库 `ai_blog_test`）。A1：`GET /api-docs` 200 且正文含 swagger-ui 标记；`GET /api-docs-json` 200。先确认失败（T005 装配已挂但注解未加时路径已存在——故本用例在 T007 后即通过，真正 RED 点放 T010/T011 内容断言）。
+- [x] ✅ T010 RED（内容）：文档源 JSON 断言——`info.title/version` 非空；`paths` 含 9 个业务路径+方法与 3 个 infra 路径（清单见 contracts §1/§2/§3）；`components.securitySchemes.Bearer.scheme==='bearer'`；受保护 7 处 operation 的 `security` 含 Bearer、login/register 无 security。此时因无注解必须失败。
+- [x] ✅ T011 RED（模型与防漂移哨兵）：文档源断言——`LoginDto.password` minLength=8/maxLength=64；`CreateUserDto.password.pattern` 非空且与 DTO 正则同义；`UserResponseDto` schema 属性集合恰为 6 个公开字段（不含 password/usernameLower/deletedAt）；`ErrorResponse` 含 code/message/statusCode。失败确认。
 
 ### Implementation for User Story 1
 
-- [ ] ⬜ T012 [P] [US1] `src/modules/auth/dto/login.dto.ts` 与 `src/modules/user/dto/create-user.dto.ts`、`update-user.dto.ts`（可选字段用 `@ApiPropertyOptional`）、`set-admin.dto.ts`、`delete-user.dto.ts`、`user-query.dto.ts` 补 `@ApiProperty`：字段中文 description、required、minLength/maxLength/pattern/example、MongoId 用 24 位 hex 示例、limit 注明缺省 20 封顶 50。约束逐字对齐 class-validator（research R6 表）。验收：不改任何既有校验装饰器与字段。
-- [ ] ⬜ T013 [P] [US1] 新建 `src/common/swagger/response-schemas.ts`：`LoginResultResponse`（token/expiresAt date-time/user \$ref）、`UserListPageResponse`（items 数组/nextCursor nullable）、`LogoutResultResponse`（success const true）、`DeleteResultResponse`（id）、`ErrorResponse`（code/message oneOf string|string[]/statusCode）；example 全部占位值，禁止真实凭据。
-- [ ] ⬜ T014 [P] [US1] `src/modules/user/dto/user-response.dto.ts` 给 6 个既有字段补 `@ApiProperty`（id string、createdAt/updatedAt date-time）；不新增/不删字段，`toUserResponse` 不动。
-- [ ] ⬜ T015 [US1] `src/modules/auth/auth.controller.ts`：`@ApiTags('auth')`；login 加 `@ApiOperation` 中文摘要、`@ApiBody`（由 DTO 自动）、200 `LoginResultResponse`、400/401 `ErrorResponse`（按 contracts §2 auth 表，不标永不返回的码）；logout 加 `@ApiBearerAuth()`、200 `LogoutResultResponse`、401。
-- [ ] ⬜ T016 [US1] `src/modules/user/user.controller.ts`：`@ApiTags('users')`，7 个操作逐一加注解（contracts §2 users 表）：POST /users 公开无 security（201/400/409 双 code）；GET+POST /users/me Bearer（200/400/401/409）；GET /users、/users/detail、POST /users/admin、POST /users/delete 标 Bearer 且摘要注明管理员（200/400 INVALID_ID|VALIDATION_ERROR/401/403/404 USER_NOT_FOUND，delete 另加 409 LAST_ADMIN_PROTECTED；list 200 用 UserListPageResponse，delete 200 用 DeleteResultResponse）。
-- [ ] ⬜ T017 [US1] `src/app.controller.ts` 与 `src/health/health.controller.ts`：`@ApiTags('infra')` + 简要 `@ApiOperation`，均无 security；health ready 文字注明 200/503 但不细建 terminus 模型（FR-016 粗粒度）。
-- [ ] ⬜ T018 GREEN：跑 `pnpm test:e2e -- swagger-docs` 确认 T009–T011 全绿；REFACTOR 消除重复的错误响应声明（可抽 `apiErrorResponses` 局部辅助，仅限注解声明，不造业务抽象）。验收：9 路径/3 infra、安全标注、模型哨兵断言全过。
+- [x] ✅ T012 [P] [US1] `src/modules/auth/dto/login.dto.ts` 与 `src/modules/user/dto/create-user.dto.ts`、`update-user.dto.ts`（可选字段用 `@ApiPropertyOptional`）、`set-admin.dto.ts`、`delete-user.dto.ts`、`user-query.dto.ts` 补 `@ApiProperty`：字段中文 description、required、minLength/maxLength/pattern/example、MongoId 用 24 位 hex 示例、limit 注明缺省 20 封顶 50。约束逐字对齐 class-validator（research R6 表）。验收：不改任何既有校验装饰器与字段。
+- [x] ✅ T013 [P] [US1] 新建 `src/common/swagger/response-schemas.ts`：`LoginResultResponse`（token/expiresAt date-time/user \$ref）、`UserListPageResponse`（items 数组/nextCursor nullable）、`LogoutResultResponse`（success const true）、`DeleteResultResponse`（id）、`ErrorResponse`（code/message oneOf string|string[]/statusCode）；example 全部占位值，禁止真实凭据。
+- [x] ✅ T014 [P] [US1] `src/modules/user/dto/user-response.dto.ts` 给 6 个既有字段补 `@ApiProperty`（id string、createdAt/updatedAt date-time）；不新增/不删字段，`toUserResponse` 不动。
+- [x] ✅ T015 [US1] `src/modules/auth/auth.controller.ts`：`@ApiTags('auth')`；login 加 `@ApiOperation` 中文摘要、`@ApiBody`（由 DTO 自动）、200 `LoginResultResponse`、400/401 `ErrorResponse`（按 contracts §2 auth 表，不标永不返回的码）；logout 加 `@ApiBearerAuth()`、200 `LogoutResultResponse`、401。
+- [x] ✅ T016 [US1] `src/modules/user/user.controller.ts`：`@ApiTags('users')`，7 个操作逐一加注解（contracts §2 users 表）：POST /users 公开无 security（201/400/409 双 code）；GET+POST /users/me Bearer（200/400/401/409）；GET /users、/users/detail、POST /users/admin、POST /users/delete 标 Bearer 且摘要注明管理员（200/400 INVALID_ID|VALIDATION_ERROR/401/403/404 USER_NOT_FOUND，delete 另加 409 LAST_ADMIN_PROTECTED；list 200 用 UserListPageResponse，delete 200 用 DeleteResultResponse）。
+- [x] ✅ T017 [US1] `src/app.controller.ts` 与 `src/health/health.controller.ts`：`@ApiTags('infra')` + 简要 `@ApiOperation`，均无 security；health ready 文字注明 200/503 但不细建 terminus 模型（FR-016 粗粒度）。
+- [x] ✅ T018 GREEN：跑 `pnpm test:e2e -- swagger-docs` 确认 T009–T011 全绿；REFACTOR 消除重复的错误响应声明（可抽 `apiErrorResponses` 局部辅助，仅限注解声明，不造业务抽象）。验收：9 路径/3 infra、安全标注、模型哨兵断言全过。
 
 **Checkpoint**: US1 可独立演示——浏览器看到完整文档且内容断言通过。
 
