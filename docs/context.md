@@ -2,11 +2,11 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-25 00:40（@dev + AI，004-swagger-docs T001–T029 完成，全量门禁绿，待编排方 OCR/PR/handoff complete）
+> 最后更新：2026-10-25 00:25（@arch + AI，004-swagger-docs T030 收尾：OCR 评审 1 处 test 问题已修（fc66bdd），handoff 置 complete，PR 待人工授权）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T036 全部完成、handoff complete；Swagger 接口文档（`specs/004-swagger-docs`）T001–T029 实现完成，handoff `executing`（本人认领），待 T030 编排方收尾（OCR/PR/complete）
+- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T036 全部完成、handoff complete；Swagger 接口文档（`specs/004-swagger-docs`）T001–T030 全部完成，handoff `complete`；剩余仅人工授权后的远程分支/PR
 - 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 23 suites / 178 tests 通过、`pnpm test:e2e` 7 suites / 46 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）、`pnpm build:local` 成功；production 模式冒烟 `/api-docs`、`/api-docs-json`、静态资源全 404，登录管线仍 401 INVALID_CREDENTIALS；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中
 - 阻塞项：无
 - 风险：
@@ -17,10 +17,11 @@
 
 ## 2. 进行中工作
 
-### Swagger 接口文档接入 004（实现完成，待评审收尾）
+### Swagger 接口文档接入 004（已收尾，handoff complete；PR 待人工授权）
 
 - 依据：[spec](../specs/004-swagger-docs/spec.md)、[plan](../specs/004-swagger-docs/plan.md)、[tasks](../specs/004-swagger-docs/tasks.md)、research/data-model/contracts/quickstart、[ADR-005](./architecture/adr/ADR-005-swagger-api-docs.md)（Pending）
-- 状态：T001–T029 完成（严格 TDD），分支 `feat/swagger_api_docs`（仓库无 develop，从 003 收尾点 3bc66a0 切出）；提交 bbda6cf/7227f67/e27c9e6/3b045fa/eceab92；handoff `executing`（dev-agent 认领），剩余 T030 由编排方收尾（OCR/PR/complete）
+- 状态：T001–T030 全部完成（严格 TDD），分支 `feat/swagger_api_docs`（仓库无 develop，从 003 收尾点 3bc66a0 切出）；提交 bbda6cf/7227f67/e27c9e6/3b045fa/eceab92/f50ae32 + 评审修正 fc66bdd；handoff `complete`；远程分支/PR 待人工授权
+- OCR 收尾评审（委托模式，范围 3bc66a0..HEAD，18 可评审文件全覆盖）：唯一发现——swagger 登出四态用例在 logout 后冗余手动 `cache.del`（logout 端点自身已删 session，会掩盖登出失效回归），已移除连带 CacheService/createHash/sessionKey 无用声明（fc66bdd）
 - 已交付：`src/common/swagger/swagger.ts`（`isSwaggerEnabled` 纯函数 8 用例 + `setupSwagger` 关闭分支不 createDocument/不 setup）；main.ts 与 test/helpers/e2e-app.ts 共用唯一装配函数；6 个用户 DTO + LoginDto 全量 @ApiProperty（约束对齐 class-validator）；auth/user/infra 控制器注解（9 业务操作 + 3 infra，错误码只标真实会发生）；`response-schemas.ts`（Login/UserListPage/Logout/Delete/Error）；env `SWAGGER_ENABLED` 三环境值 + development.md env 清单/文档入口；ADR-005
 - 验证：lint 0；单测 23 套件 178 项（新增 swagger 10 项）；E2E 7 套件 46 项（swagger-docs 套件 10 项：文档源路径/security/模型哨兵、四态 Bearer 调试、production 全 404 + 业务管线 401）；3100 local 冒烟与 3101 production 冒烟（NODE_ENV=production + env 覆盖本地测试资源）均通过
 - 关键坑（已在测试注释/ADR 记录）：① production 404 E2E 须 `jest.isolateModules` 隔离 AppModule 的 envFilePath 闭包（setup-env 已把 NODE_ENV 锁 local）；② `@nestjs/config` 不覆盖 process.env 已有键，.env.local 的 SWAGGER_ENABLED=true 会残留，production 块须显式覆盖 false；③ @nestjs/swagger 7.4.2 express 运行时自带 swagger-ui-dist（非 swagger-ui-express）
@@ -106,6 +107,15 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-25 004-swagger-docs T030 编排方收尾（@arch-agent + AI）
+
+- 目标：003 收尾完成后做 004 最后一个任务——OCR 评审、handoff complete、PR 前置。
+- OCR 委托模式评审范围 `3bc66a0..HEAD`：18 个可评审文件全覆盖（22 文件按 secret/锁文件/md 规则排除）。唯一发现：`test/swagger-docs.e2e-spec.ts` 四态用例在 logout 200 后冗余手动 `cache.del(auth:sess:<hash>)`——logout 端点自身已删 session（auth.service.logout），手动删会掩盖登出失效回归；003 登出 E2E 亦不手动删。
+- 修正：移除该 cache.del 行及连带的 CacheService/createHash/sessionKey 无用声明（fc66bdd，1 file -9 行，pre-commit lint-staged 通过）；swagger 套件复跑 10/10 绿。
+- 验证证据：`pnpm lint` 0；`pnpm test` 23 suites / 178；`pnpm test:e2e` 7 suites / 46；`pnpm build:local` 退出 0。
+- handoff 置 `complete`（last_updated 2026-10-25T00:25+08）；tasks.md T030 勾选并记录评审结论；context.md 同步。
+- 后续：远程分支推送 + PR 需人工授权（§6.6/§8，AI 不自行推远程/合并）；ADR-005 仍 Pending，PR 评审时可一并确认。
 
 ### 2026-10-25 004-swagger-docs TDD 执行 T001–T029（@dev-agent + AI）
 

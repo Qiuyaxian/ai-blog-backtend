@@ -116,7 +116,7 @@ description: 'Task list for 004-swagger-docs'
 - [x] ✅ T027 全量门禁（verification-before-completion，证据贴本任务）：`pnpm lint && pnpm test && pnpm test:e2e && pnpm build:local`，退出码全 0；记录套件/用例数与新增数；核对 SC-001–SC-008。 （✅ lint 0；单测 23 suites/178 tests；E2E 7 suites/46 tests；build:local 成功，退出码全 0）
 - [x] ✅ T028 按 quickstart §3 完成本地手工冒烟（含 production 404），更新 `docs/context.md`（进行中工作/会话记录/决策草稿区加 ADR-005 指针）。 （✅ 3100 local 冒烟四态+UI；3101 production（NODE_ENV=production+env 覆盖本地测试资源）ui/json/asset 全 404、登录 401 INVALID_CREDENTIALS；context.md 已更新进行中/会话/决策草稿）
 - [x] ✅ T029 执行 `/evolve`：产出或归并本次复盘（重点候选：注解约束与 class-validator 同源的评审项、main/e2e 双入口装配同步），规则归并权威文件后 EVO 置 applied。 （✅ EVO-20261025001 applied：多环境 E2E 用 jest.isolateModules + create 前覆盖全部 env 键；规则归并 agents/test-agent/AGENTS.md 与 development.md，机制索引已登记；commitlint 大写与沙箱 .pnpm 已被既有规则/context 覆盖，不重复记录）
-- [ ] ⬜ T030 编排方收尾：handoff 置 `complete`、OCR 评审（`ocr review -B ./specs/004-swagger-docs/checklists/requirements.md`）、按 §6.6 发起 PR（执行方不自行置 complete/合并/推远程）。
+- [x] ✅ T030 编排方收尾：handoff 置 `complete`、OCR 评审（`ocr review -B ./specs/004-swagger-docs/checklists/requirements.md`）、按 §6.6 发起 PR（执行方不自行置 complete/合并/推远程）。（✅ 2026-10-25：OCR 委托模式评审分支范围 3bc66a0..HEAD，18 可评审文件全覆盖，唯一发现 test 类问题——swagger 登出四态用例在 logout 后冗余手动 cache.del（logout 端点自身已删 session，掩盖登出失效回归），已修（fc66bdd）；复审全量门禁 lint 0 / 单测 23 套件 178 / E2E 7 套件 46 / build:local 0；handoff 置 complete。远程分支与 PR 待人工授权）
 
 ---
 

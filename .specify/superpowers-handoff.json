@@ -3,9 +3,9 @@
   "source_of_truth": "specs/004-swagger-docs",
   "tasks_file": "specs/004-swagger-docs/tasks.md",
   "constitution": ".specify/memory/constitution.md",
-  "status": "executing",
+  "status": "complete",
   "claimed_by": "cursor-agent:dev-agent#004-swagger-docs",
   "claimed_at": "2026-10-24T02:06:00+08:00",
   "reason": "",
-  "last_updated": "2026-10-24T02:06:00+08:00"
+  "last_updated": "2026-10-25T00:25:00+08:00"
 }
