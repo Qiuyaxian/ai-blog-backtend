@@ -1,9 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { createHash } from 'crypto';
 import { Connection } from 'mongoose';
 import * as request from 'supertest';
-import { CacheService } from '../src/common/cache/cache.service';
 import { authHeader, createTestApp, loginHelper } from './helpers/e2e-app';
 
 /**
@@ -118,13 +116,11 @@ describe('Swagger 文档（local）', () => {
 describe('Swagger UI Authorize 调试链路（四态）', () => {
   let app: INestApplication;
   let conn: Connection;
-  let cache: CacheService;
   const credentials = { identifier: 'swagger_alice', password: 'abc12345' };
 
   beforeAll(async () => {
     app = await createTestApp();
     conn = app.get<Connection>(getConnectionToken());
-    cache = app.get(CacheService);
     await conn.collection('users').deleteMany({});
     await request(app.getHttpServer())
       .post('/users')
@@ -162,17 +158,12 @@ describe('Swagger UI Authorize 调试链路（四态）', () => {
       .post('/auth/logout')
       .set(authHeader(token))
       .expect(200);
-    await cache.del(sessionKey(token)).catch(() => undefined);
     await request(app.getHttpServer())
       .get('/users/me')
       .set(authHeader(token))
       .expect(401);
   });
 });
-
-function sessionKey(raw: string): string {
-  return 'auth:sess:' + createHash('sha256').update(raw).digest('hex');
-}
 
 /**
  * 004 US3：production 下文档全 404（独立 bootstrap，不污染默认 local e2e-app）。
