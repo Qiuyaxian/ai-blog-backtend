@@ -79,12 +79,12 @@ description: 'Task list for 004-swagger-docs'
 
 ### Tests for User Story 2（先写）
 
-- [ ] ⬜ T019 RED：在 `test/swagger-docs.e2e-spec.ts` 追加四态用例（形态模拟 Swagger UI 发出的请求，contracts §4）：无 Authorization 调 GET /users/me→401；注册+登录取 token 后带 `Authorization: Bearer <token>`→200；普通用户 token 调 GET /users→403；调 logout 后原 token 再调 /users/me→401。注：运行时行为已由 003 保证，本组用例的 RED 价值在于随 US1 注解/装配落地后作为「调试链路无旁路」回归网——若 T015/T016 安全元数据或装配未生效即失败；先确认在当前进度下失败/或明确以文档源 security 断言（T010）为 RED，本任务在 T018 后可直接绿，tasks 执行时在 tasks.md 记录实际顺序证据。
+- [x] ✅ T019 RED：在 `test/swagger-docs.e2e-spec.ts` 追加四态用例（形态模拟 Swagger UI 发出的请求，contracts §4）：无 Authorization 调 GET /users/me→401；注册+登录取 token 后带 `Authorization: Bearer <token>`→200；普通用户 token 调 GET /users→403；调 logout 后原 token 再调 /users/me→401。注：运行时行为已由 003 保证，本组用例的 RED 价值在于随 US1 注解/装配落地后作为「调试链路无旁路」回归网——若 T015/T016 安全元数据或装配未生效即失败；先确认在当前进度下失败/或明确以文档源 security 断言（T010）为 RED，本任务在 T018 后可直接绿，tasks 执行时在 tasks.md 记录实际顺序证据。 （✅ 2026-10-25：四态用例直接绿，RED 点为 T010 security 断言，顺序证据已写入测试文件注释；8/8 swagger 套件）
 
 ### Implementation for User Story 2
 
-- [ ] ⬜ T020 [US2] 核对并补齐 Bearer 方案细节：DocumentBuilder `addBearerAuth({ type:'http', scheme:'bearer', bearerFormat:'Opaque', in:'header', name:'Authorization' })`，受保护操作均挂 `@ApiBearerAuth()`（T015/T016 已加则只核对）；不添加任何 query/cookie 令牌入口（FR-009）。验收：文档源中受保护 operation security 引用名与 scheme 一致；无其他 token 参数。
-- [ ] ⬜ T021 [US2] 手工冒烟（quickstart §3.1–3.4）并在 tasks.md 勾选处附真实结果摘要：登录 →Authorize→/users/me 200→ 普通用户 /users 403→logout 后 401。
+- [x] ✅ T020 [US2] 核对并补齐 Bearer 方案细节：DocumentBuilder `addBearerAuth({ type:'http', scheme:'bearer', bearerFormat:'Opaque', in:'header', name:'Authorization' })`，受保护操作均挂 `@ApiBearerAuth()`（T015/T016 已加则只核对）；不添加任何 query/cookie 令牌入口（FR-009）。验收：文档源中受保护 operation security 引用名与 scheme 一致；无其他 token 参数。 （✅ 核对：addBearerAuth 唯一、9 处 @ApiBearerAuth 与受保护操作一一对应、grep 无 query/cookie token 入口）
+- [x] ✅ T021 [US2] 手工冒烟（quickstart §3.1–3.4）并在 tasks.md 勾选处附真实结果摘要：登录 →Authorize→/users/me 200→ 普通用户 /users 403→logout 后 401。 （✅ 3100 真实实例冒烟：register201/me-noauth401/me-auth200/admin403/logout200/afterlogout401/ui200，文档源 logout security=[{Bearer:[]}]）
 
 **Checkpoint**: US1+US2 联调闭环可用。
 
@@ -98,12 +98,12 @@ description: 'Task list for 004-swagger-docs'
 
 ### Tests for User Story 3（先写）
 
-- [ ] ⬜ T022 RED：同套件内新增独立 bootstrap 用例：临时置 `process.env.NODE_ENV='production'`、覆盖 MONGODB_URI/Redis 到本地测试资源，用与 main.ts 相同步骤创建应用并调用 `setupSwagger`；断言 GET /api-docs→404、GET /api-docs-json→404、swagger-ui 静态资源路径（如 `/api-docs/swagger-ui-bundle.js` 或 setup 实际挂载的资产前缀，执行时以未注册路径任选其一并在断言注释写明）→404；对照 POST /auth/login 仍走业务管线（不存在凭据 →401 INVALID_CREDENTIALS，而非 404）。**环境隔离**：`.env.production` 指向 `localhost/ai_blog`（非测试库且有 IPv6 风险），bootstrap 前必须显式覆盖 `process.env.MONGODB_URI=mongodb://127.0.0.1:27017/ai_blog_test`、Redis 相关键沿用 `test/setup-env.ts` 的本地值；ConfigModule 读取的是启动时的 `process.env`，故须在 `NestFactory.create` 之前完成覆盖。结束恢复 `NODE_ENV='local'` 并关闭 app。先确认在任何错误实现（如 production 仍 setup）下失败。
+- [x] ✅ T022 RED：同套件内新增独立 bootstrap 用例：临时置 `process.env.NODE_ENV='production'`、覆盖 MONGODB_URI/Redis 到本地测试资源，用与 main.ts 相同步骤创建应用并调用 `setupSwagger`；断言 GET /api-docs→404、GET /api-docs-json→404、swagger-ui 静态资源路径（如 `/api-docs/swagger-ui-bundle.js` 或 setup 实际挂载的资产前缀，执行时以未注册路径任选其一并在断言注释写明）→404；对照 POST /auth/login 仍走业务管线（不存在凭据 →401 INVALID_CREDENTIALS，而非 404）。**环境隔离**：`.env.production` 指向 `localhost/ai_blog`（非测试库且有 IPv6 风险），bootstrap 前必须显式覆盖 `process.env.MONGODB_URI=mongodb://127.0.0.1:27017/ai_blog_test`、Redis 相关键沿用 `test/setup-env.ts` 的本地值；ConfigModule 读取的是启动时的 `process.env`，故须在 `NestFactory.create` 之前完成覆盖。结束恢复 `NODE_ENV='local'` 并关闭 app。先确认在任何错误实现（如 production 仍 setup）下失败。 （✅ RED 确认：production 下 /api-docs 200；修复后 404。关键：process.env 覆盖需含 SWAGGER_ENABLED=false——@nestjs/config 不覆盖已存在键，setup-env 加载 .env.local 的 true 会残留；模块用 jest.isolateModules 隔离 envFilePath 闭包）
 
 ### Implementation for User Story 3
 
-- [ ] ⬜ T023 [US3] 依据 T022 结果修正 `setupSwagger`/env 默认规则（T004/T005 已按 R1/R2 实现，预期仅验证不改码；若发现 setup 仍注册路由则修复直到 404）。验收：B 组全绿；production 启动日志无 swagger 路由注册、无文档构建开销。
-- [ ] ⬜ T024 [US3] 安全核对：grep 注解/example 确认无真实密码、真实 token、连接串（FR-013）；文档模型不暴露 password 字段（T011 哨兵 + 人工 grep `example:` 复核）。验收：grep 结果仅占位值。
+- [x] ✅ T023 [US3] 依据 T022 结果修正 `setupSwagger`/env 默认规则（T004/T005 已按 R1/R2 实现，预期仅验证不改码；若发现 setup 仍注册路由则修复直到 404）。验收：B 组全绿；production 启动日志无 swagger 路由注册、无文档构建开销。 （✅ setupSwagger 关闭分支零调用单测 2 例（createDocument/setup 均未调用），生产无文档构建开销）
+- [x] ✅ T024 [US3] 安全核对：grep 注解/example 确认无真实密码、真实 token、连接串（FR-013）；文档模型不暴露 password 字段（T011 哨兵 + 人工 grep `example:` 复核）。验收：grep 结果仅占位值。 （✅ grep example 全占位（507f1f77 MongoId/example.com/Passw0rd!/abc12345），无连接串/真实凭据；响应模型无 passwordHash/usernameLower/deletedAt）
 
 **Checkpoint**: 生产不暴露文档的硬承诺由自动化守住。
 

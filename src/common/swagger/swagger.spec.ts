@@ -1,4 +1,17 @@
-import { isSwaggerEnabled } from './swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { isSwaggerEnabled, setupSwagger } from './swagger';
+
+jest.mock('@nestjs/swagger', () => {
+  const actual = jest.requireActual('@nestjs/swagger');
+  return {
+    ...actual,
+    SwaggerModule: {
+      ...actual.SwaggerModule,
+      createDocument: jest.fn(),
+      setup: jest.fn(),
+    },
+  };
+});
 
 describe('isSwaggerEnabled', () => {
   it('local 未设覆盖值时默认开放', () => {
@@ -31,5 +44,34 @@ describe('isSwaggerEnabled', () => {
 
   it('非法覆盖值 fail-fast 抛错（如拼写错误 ture）', () => {
     expect(() => isSwaggerEnabled('local', 'ture')).toThrow(/SWAGGER_ENABLED/);
+  });
+});
+
+describe('setupSwagger', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function fakeConfig(values: Record<string, unknown>): {
+    get: (k: string) => unknown;
+  } {
+    return { get: (k: string) => values[k] };
+  }
+
+  it('production 关闭时不构建文档、不注册路由（零开销 404 路径）', () => {
+    const app = {} as never;
+    setupSwagger(app, fakeConfig({ NODE_ENV: 'production' }) as never);
+    expect(SwaggerModule.createDocument).not.toHaveBeenCalled();
+    expect(SwaggerModule.setup).not.toHaveBeenCalled();
+  });
+
+  it('SWAGGER_ENABLED=false 显式关闭时同样不装配（即使 NODE_ENV=local）', () => {
+    const app = {} as never;
+    setupSwagger(
+      app,
+      fakeConfig({ NODE_ENV: 'local', SWAGGER_ENABLED: 'false' }) as never,
+    );
+    expect(SwaggerModule.createDocument).not.toHaveBeenCalled();
+    expect(SwaggerModule.setup).not.toHaveBeenCalled();
   });
 });
