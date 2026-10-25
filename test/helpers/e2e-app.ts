@@ -5,14 +5,15 @@ import * as request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { AccessLogInterceptor } from '../../src/common/interceptors/access-log.interceptor';
+import { TransformResponseInterceptor } from '../../src/common/response/transform-response.interceptor';
 import { setupSwagger } from '../../src/common/swagger/swagger';
 
 /**
  * 自举测试应用。
  *
- * ponytail: 全局 ValidationPipe/Filter/Interceptor 与 src/main.ts 重复约 3 行，
- * 需手动保持同步。鉴权经 AuthModule 的 APP_GUARD 自动生效，无测试桩 Guard。
- * Swagger 装配与 src/main.ts 共用 setupSwagger（唯一两个调用点）。
+ * ponytail: 全局 ValidationPipe/Filter/Interceptor 与 src/main.ts 重复少量装配行，
+ * 需手动保持同步（仅有的两个装配点）。鉴权经 AuthModule 的 APP_GUARD 自动生效，
+ * 无测试桩 Guard。Swagger 装配与 src/main.ts 共用 setupSwagger。
  */
 export async function createTestApp(): Promise<INestApplication> {
   process.env.NODE_ENV = 'local';
@@ -28,7 +29,10 @@ export async function createTestApp(): Promise<INestApplication> {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new AccessLogInterceptor());
+  app.useGlobalInterceptors(
+    new TransformResponseInterceptor(),
+    new AccessLogInterceptor(),
+  );
   setupSwagger(app, app.get(ConfigService));
   await app.init();
   return app;
@@ -49,7 +53,7 @@ export async function loginHelper(
     .post('/auth/login')
     .send(credential)
     .expect(200);
-  return res.body.token as string;
+  return res.body.data.token as string;
 }
 
 /** 组装 Bearer 认证头 */

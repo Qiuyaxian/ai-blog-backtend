@@ -7,13 +7,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
-
-/** 统一错误体：{ code, message, statusCode }，不外泄 stack/内部路径 */
-interface ErrorBody {
-  code: string;
-  message: string | string[];
-  statusCode: number;
-}
+import {
+  ApiResponse,
+  isEnvelopeExcludedPath,
+} from '../response/response.constants';
 
 /** Mongoose CastError 的最小结构（非法 ObjectId），避免依赖 mongoose 内部类型导出 */
 interface CastErrorLike {
@@ -26,7 +23,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<{ path: string }>();
+    const path = request.path;
+
+    // 探针/根探活路径保持各自原生错误体（如 Terminus ready 503），不套统一外壳
+    if (isEnvelopeExcludedPath(path)) {
+      this.passthrough(exception, response);
+      return;
+    }
+
     const { status, code, message } = this.normalize(exception);
 
     if (status >= 500) {
@@ -37,12 +44,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
-    const body: ErrorBody = {
+    const body: ApiResponse<null> = {
       code,
+      data: null,
       message,
-      statusCode: status,
+      path,
+      time: new Date().toISOString(),
     };
     response.status(status).json(body);
+  }
+
+  /** 豁免路径：原样透传异常状态与 body，不改写为统一外壳 */
+  private passthrough(exception: unknown, response: Response): void {
+    if (exception instanceof HttpException) {
+      response
+        .status(exception.getStatus())
+        .json(exception.getResponse() as Record<string, unknown>);
+      return;
+    }
+    this.logger.error(
+      'unhandled',
+      exception instanceof Error ? exception.stack : undefined,
+    );
+    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      message: 'Internal server error',
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+    });
   }
 
   private normalize(exception: unknown): {
@@ -62,13 +89,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const raw = exception.getResponse();
-      const response =
+      const resp =
         typeof raw === 'string'
           ? { message: raw }
           : (raw as Record<string, unknown>);
       const message =
-        (response.message as string | string[] | undefined) ??
-        exception.message;
+        (resp.message as string | string[] | undefined) ?? exception.message;
 
       // ValidationPipe 的非法输入：message 为字段错误数组，统一业务 code
       if (status === HttpStatus.BAD_REQUEST && Array.isArray(message)) {
@@ -80,7 +106,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return { status, code: message, message };
       }
 
-      const code = (response.code as string | undefined) ?? 'ERROR';
+      const code = (resp.code as string | undefined) ?? 'ERROR';
       return { status, code, message };
     }
 

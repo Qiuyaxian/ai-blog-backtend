@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AccessLogInterceptor } from './common/interceptors/access-log.interceptor';
+import { TransformResponseInterceptor } from './common/response/transform-response.interceptor';
 import { setupSwagger } from './common/swagger/swagger';
 
 async function bootstrap() {
@@ -18,8 +19,13 @@ async function bootstrap() {
   );
   // 全局异常归一：业务 code 透传、校验错误 VALIDATION_ERROR、非法 ID INVALID_ID
   app.useGlobalFilters(new HttpExceptionFilter());
+  // 全局成功响应封装：业务接口统一 { code,data,message,path,time }，/ 与 /health 透传
   // 全局访问日志：每请求一条结构化 JSON，requestId 挂请求对象与 x-request-id 响应头
-  app.useGlobalInterceptors(new AccessLogInterceptor());
+  // 与 test/helpers/e2e-app.ts 为仅有的两个装配点，全局 pipe/filter/interceptor 改动需同步
+  app.useGlobalInterceptors(
+    new TransformResponseInterceptor(),
+    new AccessLogInterceptor(),
+  );
   app.enableShutdownHooks(); // 启用关闭钩子，确保 Mongoose 连接优雅释放（设计 §5.4）
   // Swagger 文档装配（/api-docs，production 自动关闭）；另一个装配点：test/helpers/e2e-app.ts
   setupSwagger(app, app.get(ConfigService));

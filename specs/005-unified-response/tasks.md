@@ -24,8 +24,8 @@ description: 'Task list for 005-unified-response'
 **Purpose**: 分支与外壳常量/类型。
 
 - [x] ✅ T001 从 `develop` 切出分支 `feat/005-unified-response`（无 develop 时从当前主干人工确认点切出，禁直接改 main/develop；远程操作需人工授权）。验收：`git branch --show-current` 为目标分支，工作树干净。`[no-test]`（实际：仓库无 develop，2026-10-26 从 004 收尾点 `da5cd9d` 切出 `feat/005-unified-response`）
-- [ ] ⬜ T002 RED：新建 `src/common/response/response.constants.spec.ts`，为 `isEnvelopeExcludedPath(path)` 写用例：`'/'`→true、`'/health'`→true、`'/health/live'`→true、`'/health/ready'`→true、`''`→false、`'/users'`→false、`'/healthx'`→false、`'/health-2'`→false、`'/health/live?x=1'`（带 query 不应出现在 req.path，单测仅锁纯函数前缀边界）；并断言导出 `SUCCESS_CODE==='SUCCESS'`、`SUCCESS_MESSAGE==='ok'`。先运行确认因模块缺失失败（TS2307）。
-- [ ] ⬜ T003 GREEN→REFACTOR：新建 `src/common/response/response.constants.ts`：导出 `SUCCESS_CODE`、`SUCCESS_MESSAGE`、`interface ApiResponse<T> { code:string; data:T|null; message:string|string[]; path:string; time:string }`、纯函数 `isEnvelopeExcludedPath`（research R3：`path==='/'||path==='/health'||path.startsWith('/health/')`），加 JSDoc。无 `any`。验收：T002 全绿。
+- [x] ✅ T002 RED：新建 `src/common/response/response.constants.spec.ts`，为 `isEnvelopeExcludedPath(path)` 写用例：`'/'`→true、`'/health'`→true、`'/health/live'`→true、`'/health/ready'`→true、`''`→false、`'/users'`→false、`'/healthx'`→false、`'/health-2'`→false；并断言导出 `SUCCESS_CODE==='SUCCESS'`、`SUCCESS_MESSAGE==='ok'`。先运行确认因模块缺失失败（TS2307）。（✅ 2026-10-26：TS2307 失败确认，5 用例）
+- [x] ✅ T003 GREEN→REFACTOR：新建 `src/common/response/response.constants.ts`：导出 `SUCCESS_CODE`、`SUCCESS_MESSAGE`、`interface ApiResponse<T>`、纯函数 `isEnvelopeExcludedPath`（research R3），加 JSDoc。无 `any`。验收：T002 全绿。（✅ 5/5 绿）
 
 **Checkpoint**: 豁免规则可单测锁定，filter/interceptor 共用。
 
@@ -37,16 +37,8 @@ description: 'Task list for 005-unified-response'
 
 **⚠️ CRITICAL**: 只改 filter 产出形状与测试，不改 `normalize` 的 status/code/message 判定逻辑（FR-006 错误码值不变）。
 
-- [ ] ⬜ T004 RED：改写 `src/common/filters/http-exception.filter.spec.ts`：
-  - `mockHost` 的 request 桩增加 `path`（如 `/users`）。
-  - 现有 4 用例断言改为新外壳：`payload` `toMatchObject({ code, data:null, message, path:'/users', time:<expect.any(String)> })`，并断言 `time` 可被 `new Date(time)` 解析、`payload` 无 `statusCode` 键；HTTP status 仍分别为 409/400/400/500。
-  - 新增用例：`path='/health/ready'` + `new ServiceUnavailableException(terminusResult)` → `res.statusCode===503` 且 `res.payload===terminusResult`（透传，无 code/data/time，research R4）。
-  - 新增用例：`path='/'` 的任意 HttpException 透传原始 `getResponse()`。
-    先运行确认失败（当前仍输出 statusCode、未透传）。
-- [ ] ⬜ T005 GREEN→REFACTOR：改 `src/common/filters/http-exception.filter.ts`：
-  - `catch` 中先取 `req.path`；`isEnvelopeExcludedPath(path)` 为真时：HttpException 用 `getStatus()` + `getResponse()` 原样 `json()`（Terminus 503 透传），非 HttpException 透传 Nest 默认 `{message,statusCode}` 形态且 status 500（不套外壳）。
-  - 非豁免路径：`normalize` 逻辑不动，body 改为 `{ code, data:null, message, path, time:new Date().toISOString() }`；删除 `ErrorBody.statusCode`。
-  - 500 仍只入日志不外泄。验收：T004 全绿；`tsc` 无错。
+- [x] ✅ T004 RED：改写 `src/common/filters/http-exception.filter.spec.ts`（mockHost 按 path 构造；4 旧用例断言改五字段外壳；新增 ready 503 透传、`/` 透传 2 例）。先运行确认失败。（✅ 2026-10-26：6/6 先红确认）
+- [x] ✅ T005 GREEN→REFACTOR：改 `src/common/filters/http-exception.filter.ts`：豁免路径 `passthrough` 原样 json（Terminus 503 原生体），非豁免 body 改 `{code,data:null,message,path,time}`；`normalize` 的 status/code/message 判定逻辑不动；删 `ErrorBody.statusCode`；500 仍只入日志。验收：T004 全绿 6/6。
 
 **Checkpoint**: 错误外壳统一且探针失败体不被污染；业务 success 路径此时仍裸返回（预期，Phase 3 补）。
 
@@ -56,14 +48,10 @@ description: 'Task list for 005-unified-response'
 
 **Purpose**: 全局拦截器包裹 9 个业务接口成功返回；两装配点注册。
 
-- [ ] ⬜ T006 RED：新建 `src/common/response/transform-response.interceptor.spec.ts`，mock `ExecutionContext`（提供 `switchToHttp().getRequest().path`）与 `CallHandler`（`handle()` 返回 `of(payload)`）：
-  - 业务路径 `/users`：返回体 `toEqual({ code:SUCCESS_CODE, data:payload, message:SUCCESS_MESSAGE, path:'/users', time:expect.any(String) })`，且原 payload 引用保留在 data；time 合法 ISO。
-  - 豁免路径 `/health/live` 与 `'/'`：`tap/map` 结果 `toBe(payload)`（原样透传，不包外壳）。
-  - 异常透传：`handle()` 返回 `throwError`，拦截器不吞错（error 传到下游）。
-    先确认模块缺失失败。
-- [ ] ⬜ T007 GREEN→REFACTOR：新建 `src/common/response/transform-response.interceptor.ts`（`@Injectable()`，`map` 实现，规则见 research R1/R2/R6）；豁免 `return next.handle()`；不 catch 错误、不打日志、不读 query。加 JSDoc 与 ponytail 注释（天花板=仅 JSON body 封装，不支持流/文件下载，升级路径=按 content-type/metadata 细化）。验收：T006 全绿。
-- [ ] ⬜ T008 在 `src/main.ts` 注册：`app.useGlobalInterceptors(new TransformResponseInterceptor(), new AccessLogInterceptor())`（顺序 R1），更新文件注释。验收：`pnpm build:local` 通过；本地启动 `POST /auth/login` 肉眼确认五字段（快速 sanity，正式断言在 Phase 5）。
-- [ ] ⬜ T009 在 `test/helpers/e2e-app.ts` 同序注册同一拦截器；`loginHelper` 改为 `return res.body.data.token as string`。更新该文件 ponytail 双装配点注释（filter/interceptor/pipe/swagger 四处需同步）。验收：编译通过；此时既有 E2E 预期大面积红灯（契约已变），红灯在 Phase 5 修复，不作为本任务完成阻塞的反例——但单测须全绿：`pnpm test` 退出 0。
+- [x] ✅ T006 RED：新建 `src/common/response/transform-response.interceptor.spec.ts`（mock context/handler：业务路径五字段且 data 引用保留、live/`/` 透传、异常不吞）。先确认模块缺失失败。（✅ 2026-10-26：TS2307 确认）
+- [x] ✅ T007 GREEN→REFACTOR：新建 `src/common/response/transform-response.interceptor.ts`（`map` 包裹，豁免透传，不 catch/不日志/不读 query，JSDoc + ponytail 天花板注释）。验收：T006 4/4 绿。
+- [x] ✅ T008 在 `src/main.ts` 注册 `new TransformResponseInterceptor()`（在 AccessLog 前），更新注释。验收：`pnpm build:local` 通过。（✅ build 成功）
+- [x] ✅ T009 `test/helpers/e2e-app.ts` 同序注册；`loginHelper` 改取 `res.body.data.token`；更新双装配点注释。验收：单测全绿。（✅ 25 套件/189 全绿；E2E 待 Phase 5 迁移）
 
 **Checkpoint**: 运行时成功/错误外壳齐备；E2E 待迁移。
 
