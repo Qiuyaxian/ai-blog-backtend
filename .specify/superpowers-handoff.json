@@ -1,11 +1,11 @@
 {
-  "feature_directory": "specs/004-swagger-docs",
-  "source_of_truth": "specs/004-swagger-docs",
-  "tasks_file": "specs/004-swagger-docs/tasks.md",
+  "feature_directory": "specs/005-unified-response",
+  "source_of_truth": "specs/005-unified-response",
+  "tasks_file": "specs/005-unified-response/tasks.md",
   "constitution": ".specify/memory/constitution.md",
-  "status": "complete",
-  "claimed_by": "cursor-agent:dev-agent#004-swagger-docs",
-  "claimed_at": "2026-10-24T02:06:00+08:00",
+  "status": "executing",
+  "claimed_by": "cursor-agent:dev-agent#005-unified-response",
+  "claimed_at": "2026-10-26T00:45:00+08:00",
   "reason": "",
-  "last_updated": "2026-10-25T00:25:00+08:00"
+  "last_updated": "2026-10-26T00:45:00+08:00"
 }
