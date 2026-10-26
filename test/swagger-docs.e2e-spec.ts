@@ -97,11 +97,122 @@ describe('Swagger 文档（local）', () => {
     );
   });
 
-  it('ErrorResponse 含 code/message/statusCode', () => {
-    const props = doc.components.schemas.ErrorResponse.properties;
-    expect(props.code).toBeTruthy();
-    expect(props.message).toBeTruthy();
-    expect(props.statusCode).toBeTruthy();
+  it('登录 200 成功模型由插件推断并被统一成功外壳包裹（allOf：SuccessEnvelope + data）', () => {
+    const login200 =
+      doc.paths['/auth/login'].post.responses['200'].content['application/json']
+        .schema;
+    expect(login200.allOf[0]).toEqual({
+      $ref: '#/components/schemas/SuccessEnvelope',
+    });
+    expect(login200.allOf[1].properties.data.$ref).toBe(
+      '#/components/schemas/LoginResultResponse',
+    );
+
+    // SuccessEnvelope 基础模型：success/code/message 三字段，无 path/time
+    const baseProps = doc.components.schemas.SuccessEnvelope.properties;
+    expect(Object.keys(baseProps).sort()).toEqual(
+      ['code', 'message', 'success'].sort(),
+    );
+    expect(baseProps.success.type).toBe('boolean');
+    expect(baseProps.code.type).toBe('number');
+    expect(baseProps.code.example).toBe(200);
+  });
+
+  it('ErrorEnvelope 含 success:false/数字 code/message/data(nullable)，无 statusCode/path/time', () => {
+    const props = doc.components.schemas.ErrorEnvelope.properties;
+    expect(Object.keys(props).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
+    expect(props.success.example).toBe(false);
+    expect(props.code.type).toBe('number');
+    // 共享模型不写死具体错误码（各状态码示例由响应级 example 给出，避免 UI 全显 409）
+    expect(props.code).not.toHaveProperty('example');
+    expect(props.data.nullable).toBe(true);
+    expect(props).not.toHaveProperty('statusCode');
+    expect(props).not.toHaveProperty('path');
+    expect(props).not.toHaveProperty('time');
+    // 旧 5 个逐接口 Envelope 子类已删除（免逐接口注解）
+    for (const legacy of [
+      'LoginEnvelope',
+      'UserEnvelope',
+      'UserListPageEnvelope',
+      'LogoutEnvelope',
+      'DeleteEnvelope',
+      'ErrorResponse',
+    ]) {
+      expect(doc.components.schemas).not.toHaveProperty(legacy);
+    }
+  });
+
+  it('9 个业务操作的成功码统一为 200，且所有 4xx 统一全套并 $ref ErrorEnvelope（全局注入哨兵）', () => {
+    const errorRef = '#/components/schemas/ErrorEnvelope';
+    const errors = [400, 401, 403, 404, 409];
+    // 成功码：所有业务操作统一 200
+    const expectedSuccess: Record<string, Record<string, number>> = {
+      '/auth/login': { post: 200 },
+      '/auth/logout': { post: 200 },
+      '/users': { post: 200, get: 200 },
+      '/users/me': { get: 200, post: 200 },
+      '/users/detail': { get: 200 },
+      '/users/admin': { post: 200 },
+      '/users/delete': { post: 200 },
+    };
+    for (const [path, methods] of Object.entries(expectedSuccess)) {
+      for (const [method, success] of Object.entries(methods)) {
+        const responses = doc.paths[path][method].responses;
+        expect(Object.keys(responses).map(Number).sort()).toEqual(
+          [success, ...errors].sort(),
+        );
+        for (const status of errors) {
+          const media = responses[status].content['application/json'];
+          expect(media.schema.$ref).toBe(errorRef);
+          // 每个错误状态码的示例体 code 必须等于自身状态码（不共用写死的 409）
+          expect(media.example).toMatchObject({
+            success: false,
+            code: status,
+            data: null,
+          });
+        }
+      }
+    }
+  });
+
+  it('T031：列表 data 为五字段页码分页、删除 data 为 null、单查 data nullable，旧模型零引用', () => {
+    // 分页 DTO：total/list/page/pageTotal/index，无 items/nextCursor
+    const pageProps = doc.components.schemas.UserListPageResponse.properties;
+    expect(Object.keys(pageProps).sort()).toEqual(
+      ['index', 'list', 'page', 'pageTotal', 'total'].sort(),
+    );
+
+    // GET /users 成功 data 指向分页 DTO
+    const listData =
+      doc.paths['/users'].get.responses['200'].content['application/json']
+        .schema.allOf[1].properties.data;
+    expect(listData.$ref).toBe('#/components/schemas/UserListPageResponse');
+
+    // POST /users/delete 与 POST /auth/logout：Promise<null> 由 wrap 合成 data:null
+    for (const [path, method] of [
+      ['/users/delete', 'post'],
+      ['/auth/logout', 'post'],
+    ] as const) {
+      const data =
+        doc.paths[path][method].responses['200'].content['application/json']
+          .schema.allOf[1].properties.data;
+      expect(data).toMatchObject({ nullable: true, example: null });
+    }
+
+    // GET /users/detail：UserResponseDto | null，$ref 同级带 nullable
+    const detailData =
+      doc.paths['/users/detail'].get.responses['200'].content[
+        'application/json'
+      ].schema.allOf[1].properties.data;
+    expect(detailData).toMatchObject({
+      $ref: '#/components/schemas/UserResponseDto',
+      nullable: true,
+    });
+
+    // 旧删除结果模型已删除
+    expect(doc.components.schemas).not.toHaveProperty('DeleteResultResponse');
   });
 });
 
@@ -129,7 +240,7 @@ describe('Swagger UI Authorize 调试链路（四态）', () => {
         email: 'swagger_alice@example.com',
         password: 'abc12345',
       })
-      .expect(201);
+      .expect(200);
   }, 30000);
 
   afterAll(async () => {
@@ -147,7 +258,7 @@ describe('Swagger UI Authorize 调试链路（四态）', () => {
       .get('/users/me')
       .set(authHeader(token))
       .expect(200);
-    expect(res.body.username).toBe('swagger_alice');
+    expect(res.body.data.username).toBe('swagger_alice');
 
     await request(app.getHttpServer())
       .get('/users')
@@ -269,6 +380,6 @@ describe('Swagger 文档（production 关闭）', () => {
       .post('/auth/login')
       .send({ identifier: 'nobody_prod', password: 'wrongpass123' })
       .expect(401);
-    expect(res.body.code).toBe('INVALID_CREDENTIALS');
+    expect(res.body.code).toBe(401);
   });
 });

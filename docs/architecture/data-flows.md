@@ -35,10 +35,10 @@ sequenceDiagram
     AS->>AS: bcrypt 比对（不存在走 dummy 哈希）
     alt 锁定期或密码错
         AS->>R: 锁定期：不读写计数键；密码错：incrWithTtl(fail)，第 5 次 set(lock)
-        AS-->>C: 401 INVALID_CREDENTIALS（三类同构）
+        AS-->>C: 401 {success:false,code:401,data:null,message}（三类同构，统一外壳；同状态细分靠 message）
     else 校验通过
         AS->>R: del(fail) + set(auth:sess:sha256(token), {sub}, 7d TTL)
-        AS-->>C: 200 { token, expiresAt, user（脱敏） }
+        AS-->>C: 200 {success:true,code:200,message:'ok',data:{ token, expiresAt, user（脱敏） }}
     end
 ```
 
@@ -62,7 +62,7 @@ sequenceDiagram
     S->>DB: 按 name 查重
     S->>DB: insert category / tag
     S->>R: 删除 category:list:* / tag:list:* 缓存（失败仅告警）
-    S-->>C: 201 + 数据
+    S-->>C: 200 + 数据
 ```
 
 ### 3. 发布文章（阶段 3：必须挂已有分类，可带已有标签）
@@ -89,7 +89,7 @@ sequenceDiagram
     TS-->>PS: 含未知标签 → 400
     PS->>DB: insert post（status=draft/published，关联分类与标签）
     PS->>R: 删除 post:list:* 缓存（失败仅告警）
-    PS-->>C: 201 + post
+    PS-->>C: 200 + post
 ```
 
 ### 4. 浏览文章（阶段 4：cache-aside，浏览计数异步累加）
@@ -139,7 +139,7 @@ sequenceDiagram
     CM->>DB: insert comment
     CM->>R: 删除 comment:list:{postId} 缓存（失败仅告警）
     CM-)Q: 发 comment.created（异步，失败重试）
-    CM-->>C: 201 + comment
+    CM-->>C: 200 + comment
 ```
 
 ## 降级总则

@@ -141,14 +141,14 @@ export class CreateUserDto {
 
 职责：哈希、归一化、落库、唯一性错误转换、最后管理员保护。核心方法：
 
-| 方法                       | 行为                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `create(dto)`              | 生成 `usernameLower`；bcrypt 哈希密码；不写 `isAdmin`（缺省即 false）；插入并转换 `E11000`        |
-| `findById(id)`             | 按 id 查未删除用户，非法 ObjectId 抛 400；已删除/不存在抛 404；返回脱敏视图                       |
-| `updateEmail(userId, dto)` | 改邮箱，捕获 `email_1` 冲突转 409                                                                 |
-| `list({ limit, cursor })`  | 管理员用，仅返回 `deletedAt: null`，游标分页（见 §7）                                             |
-| `setAdmin(dto, actor)`     | 仅管理员；入参 `{ id, isAdmin }` 走 body；降权时校验最后管理员约束（见 §6）                       |
-| `softDelete(dto, actor)`   | 仅管理员；入参 `{ id }` 走 body；已删除返回 404/幂等；删除唯一管理员拒绝（见 §6）；置 `deletedAt` |
+| 方法                       | 行为                                                                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create(dto)`              | 生成 `usernameLower`；bcrypt 哈希密码；不写 `isAdmin`（缺省即 false）；插入并转换 `E11000`                                                                             |
+| `findById(id)`             | 按 id 查未删除用户，非法 ObjectId 抛 400；返回脱敏视图。**T031 起只读调用（detail）不存在/已软删返回 `null`（200），写操作调用方（setAdmin/softDelete）仍按 404 处理** |
+| `updateEmail(userId, dto)` | 改邮箱，捕获 `email_1` 冲突转 409                                                                                                                                      |
+| `list({ page, pageSize })` | 管理员用，仅返回 `deletedAt: null`，页码分页（见 §7；T031 起替换 `{limit,cursor}`）                                                                                    |
+| `setAdmin(dto, actor)`     | 仅管理员；入参 `{ id, isAdmin }` 走 body；目标不存在 404；降权时校验最后管理员约束（见 §6）                                                                            |
+| `softDelete(dto, actor)`   | 仅管理员；入参 `{ id }` 走 body；已删除返回 404；删除唯一管理员拒绝（见 §6）；置 `deletedAt`；**T031 起成功返回 `null`（原 `{id}` 废止）**                             |
 
 密码哈希：
 
@@ -205,7 +205,9 @@ async softDelete(dto: DeleteUserDto): Promise<{ id: string }> {
 
 ## 7. 用户列表分页
 
-按通用集成文档 §3.5 用 `_id` 游标分页，`limit` 缺省 20、服务端封顶 50（超过 50 截断而非报错），深翻页不用 `skip`：按 `_id` 倒序（ObjectId 内嵌创建时间，等价于创建时间倒序）、上一页末位 `_id` 作游标。返回 `{ items, nextCursor }`，items 全部走脱敏转换；查询多取 1 条（`limit + 1`）判断是否有下一页。
+> **T031（2026-10-26，005-unified-response / ADR-006 决策 16）改为页码分页**：入参 `page`（缺省 1）+ `pageSize`（缺省 20、封顶 50）；取数 `countDocuments({deletedAt:null})` 取 `total` + `skip((page-1)*pageSize).limit(pageSize).sort({_id:-1})`；返回 `{ total, list, page, pageTotal, index }`，其中 `pageTotal=ceil(total/pageSize)`（total=0 时 0）、`index=(page-1)*pageSize+1`（本页首条全局序号，从 1 起）；越界页 200 + 空 `list`。下文游标分页为 T031 前历史设计，保留作演进轨迹。
+
+~~按通用集成文档 §3.5 用 `_id` 游标分页，`limit` 缺省 20、服务端封顶 50（超过 50 截断而非报错），深翻页不用 `skip`：按 `_id` 倒序（ObjectId 内嵌创建时间，等价于创建时间倒序）、上一页末位 `_id` 作游标。返回 `{ items, nextCursor }`，items 全部走脱敏转换；查询多取 1 条（`limit + 1`）判断是否有下一页。~~
 
 ## 8. 接口一览
 
@@ -213,7 +215,7 @@ async softDelete(dto: DeleteUserDto): Promise<{ id: string }> {
 
 | 方法 | 路径            | 鉴权   | 说明                                                              |
 | ---- | --------------- | ------ | ----------------------------------------------------------------- |
-| POST | `/users`        | 公开   | 注册，body = `CreateUserDto`，返回 201 + 脱敏用户                 |
+| POST | `/users`        | 公开   | 注册，body = `CreateUserDto`，返回 200 + 脱敏用户                 |
 | GET  | `/users/me`     | 已登录 | 查看本人资料                                                      |
 | POST | `/users/me`     | 已登录 | 修改本人邮箱，body = `UpdateUserDto`                              |
 | GET  | `/users`        | 管理员 | 用户列表（游标分页，仅未删除）                                    |

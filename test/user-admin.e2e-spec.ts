@@ -33,8 +33,8 @@ describe('admin user management', () => {
         email: 'root@example.com',
         password: 'abc12345',
       })
-      .expect(201);
-    adminId = admin.body.id;
+      .expect(200);
+    adminId = admin.body.data.id;
     // 测试库直接置管理员（绕过注册不提权的业务约束）
     await conn
       .collection('users')
@@ -46,8 +46,8 @@ describe('admin user management', () => {
     const target = await request(app.getHttpServer())
       .post('/users')
       .send({ username: 'bob', email: 'bob@example.com', password: 'abc12345' })
-      .expect(201);
-    targetId = target.body.id;
+      .expect(200);
+    targetId = target.body.data.id;
 
     adminToken = await loginHelper(app, {
       identifier: 'root',
@@ -75,32 +75,90 @@ describe('admin user management', () => {
     return 'auth:sess:' + createHash('sha256').update(raw).digest('hex');
   }
 
-  it('admin lists users with sanitized items', async () => {
+  it('admin lists users with page result {total,list,page,pageTotal,index}', async () => {
     const res = await request(app.getHttpServer())
-      .get('/users?limit=10')
+      .get('/users?page=1&pageSize=10')
       .set(authHeader(adminToken))
       .expect(200);
-    expect(res.body.items.length).toBe(2);
-    expect(res.body.items[0]).not.toHaveProperty('password');
-    expect(res.body).toHaveProperty('nextCursor');
+    expect(res.body.data).toMatchObject({
+      total: 2,
+      page: 1,
+      pageTotal: 1,
+      index: 1,
+    });
+    expect(res.body.data.list).toHaveLength(2);
+    expect(res.body.data.list[0]).not.toHaveProperty('password');
+    expect(res.body.data).not.toHaveProperty('items');
+    expect(res.body.data).not.toHaveProperty('nextCursor');
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
   });
 
-  it('admin gets a single user detail; bad id -> 400, missing -> 404', async () => {
+  it('paginates by page/pageSize: second page index continues and out-of-range page is an empty 200', async () => {
+    // 再造 20 个用户：连 root/bob 共 22，pageSize=20 → 第 2 页 2 条
+    await conn.collection('users').insertMany(
+      Array.from({ length: 20 }, (_, i) => ({
+        username: `u${i}`,
+        usernameLower: `u${i}`,
+        email: `u${i}@example.com`,
+        password: 'x',
+        isAdmin: false,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    );
+
+    const p2 = await request(app.getHttpServer())
+      .get('/users?page=2&pageSize=20')
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(p2.body.data).toMatchObject({
+      total: 22,
+      page: 2,
+      pageTotal: 2,
+      index: 21,
+    });
+    expect(p2.body.data.list).toHaveLength(2);
+
+    const over = await request(app.getHttpServer())
+      .get('/users?page=99&pageSize=20')
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(over.body.data.list).toEqual([]);
+    expect(over.body.data).toMatchObject({ total: 22, page: 99, index: 1961 });
+  });
+
+  it('admin gets a single user detail; bad id -> 400, missing/soft-deleted -> 200 + data:null', async () => {
     const ok = await request(app.getHttpServer())
       .get(`/users/detail?id=${targetId}`)
       .set(authHeader(adminToken))
       .expect(200);
-    expect(ok.body.id).toBe(targetId);
+    expect(ok.body.data.id).toBe(targetId);
 
-    await request(app.getHttpServer())
+    const badId = await request(app.getHttpServer())
       .get('/users/detail?id=bad-id')
       .set(authHeader(adminToken))
       .expect(400);
+    expect(badId.body).toMatchObject({
+      success: false,
+      code: 400,
+      data: null,
+    });
+    expect(badId.body.message).toBe('无效的资源 ID');
+    expect(badId.body).not.toHaveProperty('statusCode');
 
-    await request(app.getHttpServer())
+    // 只读单查：不存在是合法空结果，200 + data:null（T031，不再是 404）
+    const missing = await request(app.getHttpServer())
       .get('/users/detail?id=65ab000000000000000000ff')
       .set(authHeader(adminToken))
-      .expect(404);
+      .expect(200);
+    expect(missing.body).toMatchObject({
+      success: true,
+      code: 200,
+      data: null,
+    });
   });
 
   it('promotes and demotes a user', async () => {
@@ -109,7 +167,7 @@ describe('admin user management', () => {
       .set(authHeader(adminToken))
       .send({ id: targetId, isAdmin: true })
       .expect(200);
-    expect(promoted.body.isAdmin).toBe(true);
+    expect(promoted.body.data.isAdmin).toBe(true);
 
     // 此时有两名管理员，降权 target 允许
     await request(app.getHttpServer())
@@ -117,7 +175,7 @@ describe('admin user management', () => {
       .set(authHeader(adminToken))
       .send({ id: targetId, isAdmin: false })
       .expect(200)
-      .expect((res) => expect(res.body.isAdmin).toBe(false));
+      .expect((res) => expect(res.body.data.isAdmin).toBe(false));
   });
 
   it('protects the last admin from demotion and deletion', async () => {
@@ -126,14 +184,26 @@ describe('admin user management', () => {
       .set(authHeader(adminToken))
       .send({ id: adminId, isAdmin: false })
       .expect(409);
-    expect(res.body.code).toBe('LAST_ADMIN_PROTECTED');
+    expect(res.body).toMatchObject({
+      success: false,
+      code: 409,
+      data: null,
+    });
+    expect(res.body.message).toBe('最后一个管理员不可删除');
+    expect(res.body).not.toHaveProperty('statusCode');
 
     const del = await request(app.getHttpServer())
       .post('/users/delete')
       .set(authHeader(adminToken))
       .send({ id: adminId })
       .expect(409);
-    expect(del.body.code).toBe('LAST_ADMIN_PROTECTED');
+    expect(del.body).toMatchObject({
+      success: false,
+      code: 409,
+      data: null,
+    });
+    expect(del.body.message).toBe('最后一个管理员不可删除');
+    expect(del.body).not.toHaveProperty('statusCode');
   });
 
   it('soft-deletes a user: disappears from list/detail, record remains', async () => {
@@ -142,20 +212,25 @@ describe('admin user management', () => {
       .set(authHeader(adminToken))
       .send({ id: targetId })
       .expect(200);
-    expect(delRes.body).toEqual({ id: targetId });
+    expect(delRes.body.data).toBeNull();
+    expect(Object.keys(delRes.body).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
 
     const list = await request(app.getHttpServer())
       .get('/users')
       .set(authHeader(adminToken))
       .expect(200);
-    expect(list.body.items.map((u: { id: string }) => u.id)).not.toContain(
+    expect(list.body.data.list.map((u: { id: string }) => u.id)).not.toContain(
       targetId,
     );
 
-    await request(app.getHttpServer())
+    // 只读单查软删用户：200 + data:null（T031）
+    const detail = await request(app.getHttpServer())
       .get(`/users/detail?id=${targetId}`)
       .set(authHeader(adminToken))
-      .expect(404);
+      .expect(200);
+    expect(detail.body.data).toBeNull();
 
     // 物理记录仍在且 deletedAt 已写
     const raw = await conn

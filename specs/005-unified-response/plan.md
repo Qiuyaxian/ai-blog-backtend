@@ -4,6 +4,12 @@
 
 **Input**: Feature specification from `specs/005-unified-response/spec.md`
 
+> **T031 修订（2026-10-26，权威）**：锁定 CRUD `data` 五形态（见 spec T031/FR-016..018、contracts 头部表、data-model §6、ADR-006 决策 16）：列表改页码分页 `{total,list,page,pageTotal,index}`（入参 page/pageSize，废 cursor/limit）、删除 data=null、只读单查不存在 200+null（写操作仍 404）、创建/更新返回完整对象。实现方案：`UserQueryDto` 换 page/pageSize；`UserService.list` 用 countDocuments + skip/limit；分页 DTO class 换五字段；删 `DeleteResultResponse`；只读/写操作的「不存在」处理分叉（tasks T031-5/6）。执行任务以 tasks.md **Phase 8（T031-1..T031-10）** 为唯一依据；本计划历史文本保留不改写。
+>
+> **T029 修订（2026-10-26，权威）**：所有业务成功响应 HTTP 状态码统一为 200（注册不再是 201）；错误状态码保持 400/401/403/404/409，未知服务器异常兜底 500。
+>
+> **T027 修订（2026-10-26，权威）**：实现最终形态与本文的五字段/Envelope 子类方案不同——四字段 `{success,code,message,data}`、错误文案集中 `ERROR_CODES`、Swagger 成功响应经 CLI 插件推断 + `wrapSuccessEnvelope` 统一包裹（无逐接口成功 `@ApiResponse`、无 Envelope 子类）。差异明细以 tasks T027、ADR-006 决策 11/12、contracts/api-contract.md 为准，本计划历史文本保留。
+
 ## Summary
 
 给所有业务 JSON 接口（auth、users 共 9 个）加统一响应外壳 `{ code, data, message, path, time }`，错误体收敛为同形状（`data:null`，移除顶层 `statusCode`）：
@@ -36,7 +42,7 @@
 
 - 成功体固定 `code:'SUCCESS'`、`message:'ok'`；错误体无顶层 `statusCode`/`error`
 - `/`、`/health/live`、`/health/ready`（含 ready 503）不套外壳
-- HTTP 语义状态码保留（注册 201，其余成功 200；400/401/403/404/409/500 不变）
+- 所有业务成功响应统一 HTTP 200（注册不再使用 201）；错误保持 400/401/403/404/409，未知服务器异常 500
 - 零新依赖、零 DB/缓存/鉴权行为变更、不泄露堆栈/内部路径
 
 **Scale/Scope**: 9 业务接口；2 个新源码文件 + 1 个新 schema 文件（约 3 新文件）、改 1 filter、2 装配点、2 controller 注解、6 个 E2E 套件 + 1 个 helper、1 个 filter 单测改写 + 2 个新单测

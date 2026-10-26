@@ -2,12 +2,12 @@
 
 > 跨会话动态项目记忆，抵抗 AI 上下文丢失。每次重要会话结束前更新。
 > 稳定规则不在此复制：硬性规则见 [../AGENTS.md](../AGENTS.md)，编码规范见 [development/coding-style.md](./development/coding-style.md)，架构决策见 [architecture/adr/](./architecture/README.md#adr-索引)，文档入口见 [index.md](./index.md)。
-> 最后更新：2026-10-25 00:25（@arch + AI，004-swagger-docs T030 收尾：OCR 评审 1 处 test 问题已修（fc66bdd），handoff 置 complete，PR 待人工授权）
+> 最后更新：2026-10-26 22:10（@dev + AI，005 Phase 8 / T031 代码执行完成：CRUD `data` 五形态落地——页码分页 `{total,list,page,pageTotal,index}`、删除/只读空结果 null、只读 detail 不存在 200+null；全量门禁 lint 0 / 单测 27 套件 231 / E2E 7 套件 50 / build 0；EVO-20261026003 applied；待编排方置 handoff complete + PR）
 
 ## 1. 当前状态
 
-- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T036 全部完成、handoff complete；Swagger 接口文档（`specs/004-swagger-docs`）T001–T030 全部完成，handoff `complete`；剩余仅人工授权后的远程分支/PR
-- 主干健康：本会话实测 `pnpm lint` 退出 0、`pnpm test` 23 suites / 178 tests 通过、`pnpm test:e2e` 7 suites / 46 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）、`pnpm build:local` 成功；production 模式冒烟 `/api-docs`、`/api-docs-json`、静态资源全 404，登录管线仍 401 INVALID_CREDENTIALS；`grep -rn "x-test-user\|TestUserGuard" test/ src/` 零命中
+- 当前阶段：用户模块（`specs/001-user-module`）已 Confirmed；Redis 缓存基础设施（`specs/002-redis-integration`）已 Confirmed、handoff complete；用户登录鉴权（`specs/003-user-login`）T001–T036 全部完成、handoff complete；Swagger 接口文档（`specs/004-swagger-docs`）T001–T030 全部完成，handoff `complete`；全局统一响应外壳（`specs/005-unified-response`）T001–T031 全部完成（T031 CRUD data 五形态；handoff 仍 `executing`，执行方不自行置 complete），剩编排方置 complete + PR
+- 主干健康：本会话实测 `pnpm lint` 退出 0（零 warning）、`pnpm test` 27 suites / 231 tests 通过、`pnpm test:e2e` 7 suites / 50 tests 通过（真实本地 mongod + redis，测试库 `ai_blog_test`）、`pnpm build:local` 退出 0；所有业务成功响应（含注册）统一 HTTP 200，外壳 `code` 为数字且与状态行一致
 - 阻塞项：无
 - 风险：
   - E2E 依赖本地 redis-server 在运行；沙箱内 loopback 被拦时需在沙箱外执行 `pnpm test:e2e`。
@@ -16,6 +16,19 @@
   - E2E 固定 `--runInBand`（package.json）：多个 AppModule 并行 bootstrap 会把本地 Mongo 连接打满；CI 若换测试容器可再评估并行。
 
 ## 2. 进行中工作
+
+### 全局统一响应外壳 005（T001–T031 全部完成，handoff executing 待编排方置 complete；待 PR）
+
+- 依据：[spec](../specs/005-unified-response/spec.md)、[plan](../specs/005-unified-response/plan.md)、[tasks](../specs/005-unified-response/tasks.md)、research/contracts/quickstart、[ADR-006](./architecture/adr/ADR-006-unified-response-envelope.md)（Pending，决策 15）
+- 范围（T030 后最终形态）：成功体全局 map 拦截器包**四字段** `{success:true,code:200,message:'ok',data}`；错误过滤器产出 `{success:false,code,message,data:null}`，**外壳 `code` 为数字且恒等于本次响应 HTTP 状态码**（成功 200，失败 400/401/403/404/409/500），同状态细分原因只靠 `message` 区分；服务异常的抛出位置、异常类型、HTTP 状态行、鉴权/校验行为全部保留，原 10 个字符串码（`VALIDATION_ERROR`/`UNAUTHENTICATED` 等）降级为 Service/Guard 抛出值与 `ERROR_CATALOG` 的内部异常键，不再出现在响应体（错误配置单一来源：内部键 →`{status,message,docLabel?}`，运行时 `ERROR_CODES` 与 Swagger 状态集合/描述均派生）；`GET /` 与 `/health/*` 豁免（`isEnvelopeExcludedPath` 拦截器/过滤器/wrap 三处共用）；data 原样支持 null/[]/{}/对象。**控制器对响应零方法注解**：成功 data 由 swagger CLI 插件按返回类型推断（nest-cli.json + E2E test/ts-jest.transformers.js 双链路），`wrapSuccessEnvelope` createDocument 后 allOf 包 SuccessEnvelope（code schema number）；错误响应由 wrap 统一注入全套 400/401/403/404/409（$ref ErrorEnvelope、通用文案），文档枚举不逐接口收窄（用户明确接受的精度权衡，真实码以 E2E 为准）。
+- 状态：T001–T030 全部勾选；分支 `feat/005-unified-response`（从 004 收尾点 da5cd9d 切出）；改动尚未提交（工作树）
+- 验证（T030 最终）：lint 0；单测 27 套件 222 项（constants `SUCCESS_CODE===200`、filter 错误体数字 code、wrap 两 Envelope code:number）；E2E 7 套件 48 项（错误 code=HTTP 数字、重复用户名/邮箱同 409 靠 message 区分）；build:local 0；src/test 字符串 code 外壳断言 grep 0 命中（仅内部抛出点/catalog 键保留）。
+- T030 文件：`response.constants.ts(.spec)`（`SUCCESS_CODE=HttpStatus.OK`、`ApiResponse.code:number`）、`http-exception.filter.ts(.spec)`（normalize 不再返回字符串 code、body code=数字 status）、`transform-response.interceptor.spec.ts`、`src/common/swagger/wrap-envelope.ts(.spec)`（两 Envelope code 改 number，示例 200/409）、5 个业务 E2E 套件数字断言；同步 005 spec/contract/data-model/tasks/quickstart、ADR-006 决策 15、001/003/004 契约指针、coding-style §1.4。
+- 约定约束：业务成功统一 HTTP 200；客户端错误保持 400/401/403/404/409；500 仅用于未知服务器异常。
+- T031（2026-10-26 用户追加，**代码已全部落地，2026-10-26 22:10 Phase 8 完成**）：锁定 CRUD `data` 五形态（ADR-006 决策 16）——① 分页列表 `{total,list,page,pageTotal,index}`，入参 `page`（缺省 1）/`pageSize`（缺省 20 封顶 50），`index=(page-1)*pageSize+1` 从 1 起，`pageTotal=ceil(total/pageSize)`（total=0 时 0），游标 `{items,nextCursor}`+`cursor/limit` 废止；② 删除 `data=null`（替换 `{id}`，delete-result.dto.ts 已删）；③ 创建/更新 `data=` 完整对象（现状满足）；④ 只读单查不存在（含软删）200+`data:null`（新增 `findByIdOrNull`，不抛 404，非法 id 仍 400），写操作 setAdmin/softDelete 目标不存在仍 404。验证：lint 0；单测 27 套件 231；E2E 7 套件 50（第二页 index=21、越界页空 list、软删 detail 200+null、重复删除 404）；build:local 0；grep 业务残留 0（仅负断言/文档源哨兵）。/evolve 产出 EVO-20261026003（CRUD data 形态与分页范式须在首个列表接口前锁定），已归并 arch-agent 清单 + 机制索引 applied。
+- 坑：① 运行时无 @ApiResponse 时 swagger explorer 只产空描述（读源码证实），免注解必须走 CLI 插件，interface 无法生成 schema，故 login 返回类型为 class LoginResultResponse；② ts-jest transformer 须导出 name/version/factory；③ 无 @HttpCode 时插件对 POST 默认文档化 201，故 wrap 必须把唯一 2xx 键统一归一到 200，否则文档与运行时漂移；④ 沙箱 kill 3000 冒烟进程被拒，历史 PID 40881 需沙箱外 kill -9
+- 文档：ADR-006 决策 14（成功统一 200，错误状态码语义化）；005 契约 §5、spec/plan T029 修订、tasks T029、coding-style §1.4 同步
+- 剩余：`/evolve`；verification-before-completion 后由编排方置 handoff complete；提交/PR 需人工授权
 
 ### Swagger 接口文档接入 004（已收尾，handoff complete；PR 待人工授权）
 
@@ -60,6 +73,7 @@
 
 ## 3. 近期完成（滚动窗口，只留最近 5 项）
 
+- 2026-10-26 全局统一响应外壳 005 执行收尾（T013–T023，@dev-agent + AI）：4 个业务 E2E 套件断言迁 `data`（user-register/user-profile/user-admin/auth-login），全等体比较因 `time` 逐请求不同改 `toMatchObject({code,data:null,path})` + typeof time；豁免路径补 ready 无外壳键断言；ADR-006（Pending）；001/003/004 contracts 加 005 指针、data-flows 登录段、coding-style §1.4；全量门禁 lint 0 / 单测 25 套件 189 / E2E 7 套件 47 / build 0；3000 端口 8 步手工冒烟全过。
 - 2026-10-23 用户登录鉴权 003 全量 TDD 实现（T001–T033）：不透明令牌 + Redis 服务端会话（sha256 入键、7 天 TTL）、全局 AuthGuard 默认拒绝 + 每请求回查 Mongo（软删/降权即时生效）、登出即时吊销、失败 5 次锁 15 分钟统一 401；删除 x-test-user 桩全部 E2E 走真实登录；新增 CacheService.incrWithTtl、UserService.getAuthPrincipal/findLoginCredential；lint 0、单测 21 套件 168 项、E2E 6 套件 36 项全绿；ADR-004 Draft→Pending；5 个小步提交（41c39b7…7328e01），handoff 仍 executing 待 PR。
 - 2026-10-15 Redis 缓存基础设施全量 TDD 实现并评审通过：T001–T021；ioredis 单例模块（client 不导出）、强制 TTL 的 CacheService（含键非空守卫）、自定义健康指示器并入 /health/ready、启动 ping fail-fast、error 日志脱敏；新增 E2E `test/redis-health.e2e-spec.ts` 与 `test/setup-env.ts`（修复 E2E 未加载 .env.local）；真实 Redis 验证断线命令即败、重启后同实例自动重连、日志无密码；OCR 评审 4 条意见修复（退避文档对齐线性 times\*100）；lint 0、单测 17 套件 103 项、E2E 5 套件 20 项全绿；ADR-003、设计与 spec 转 Confirmed；提交 `cbdad4a` 推送 `feat/user_redis_init`。
 - 2026-10-14 用户模块全量实现并通过代码评审：T001–T035 按 TDD 落地；70 单测 + 18 E2E 全绿；全局过滤器/拦截器注册 main.ts；旧 app.e2e 补 NODE_ENV/MONGODB_URI；`test:e2e` 固定 --runInBand --forceExit；ADR-002、设计与 spec 转 Confirmed。
@@ -84,6 +98,8 @@
 
 ## 6. 关键决策草稿（AI 追加，人工确认后移入 §5 并建 ADR）
 
+- 2026-10-26 全局统一响应外壳：成功体全局 map 拦截器包裹、错误体扁平化删 statusCode（HTTP 状态码保留）、探活路径豁免单一纯函数共用、一次性破坏性切换（无外部消费方）；T027 收敛为四字段 `{success,code,message,data}`（对齐 @nestarc/safe-response，去 path/time）、错误文案集中 ERROR_CODES、Swagger 成功响应经 CLI 插件 + wrapSuccessEnvelope 免逐接口注解。已建 ADR-006（Pending，决策 11/12），T001–T027 完成待评审确认。
+
 - 2026-10-22 接入 Harness 多角色协作层：四角色（arch/dev/test/devops）+ `/role`、`/evolve` 两个角色层指令 + 进化记录机制。是否作为长期治理基线待人工确认；确认后可考虑补 ADR-004（文档治理/开发流程类）。详见 EVO-20261022001。
 
 - 2026-10-22 登录鉴权令牌选型：不透明随机令牌 + Redis 服务端会话（sha256 入键、7 天 TTL、登出即时吊销）+ 每请求 Mongo 回查账号实现软删/降权即时生效；不引入 JWT/passport 新依赖。已建 ADR-004（Draft），实现评审通过后确认。
@@ -107,6 +123,78 @@
 - bcrypt 原生构建：pnpm ≥10 默认拦依赖 install 脚本，白名单在 `pnpm-workspace.yaml`（`allowBuilds: bcrypt:true`，pnpm 9 读 package.json 的 `pnpm.onlyBuiltDependencies`）。遇 `bcrypt_lib.node` 找不到 / `ERR_PNPM_IGNORED_BUILDS`：占位串改 `true` 后 `pnpm rebuild bcrypt`；沙箱内重装报 `.pnpm Operation not permitted` 时改在沙箱外执行。详见 [development.md §8.1](./development/development.md#81-bcrypt-原生绑定缺失--构建脚本被忽略)。
 
 ## 9. 会话记录（只追加；超过 30 条压缩为季度摘要，归档到 issues/ 或独立归档文件）
+
+### 2026-10-27 修复 Swagger 错误示例全显 409（@dev-agent + AI）
+
+- 现象：Swagger UI 中每个接口的 400/401/403/404 错误响应示例体 `code` 都显示 409。
+- 根因：所有错误状态码响应 `$ref` 同一个 `ErrorEnvelope` 模型，而模型 `properties.code.example` 写死 409；Swagger UI 按共享模型示例渲染，响应键本身（400/401/403/404/409）正确。
+- 修复（TDD）：`src/common/swagger/wrap-envelope.ts` 删除 ErrorEnvelope.code 的 `example:409`；`injectErrors` 给每个状态码响应的 media 挂响应级 `example:{success:false,code:<该状态码>,message,data:null}`（OpenAPI media.example 覆盖模型示例）。`ResponseLike` media 类型加 `example?`。
+- 测试：wrap-envelope.spec 改 2 例（模型 code 无 example；每状态码 example.code 等于自身）；swagger-docs E2E 哨兵同步。验证：单测 28 套件 233、E2E 7 套件 50、lint 0、build:local 0；真实起服务取 /api-docs-json 复核 400..409 示例 code 各自正确。
+- 同期：将 AuthService 私有 `logLockHit` 提取为全局 `src/common/logger/security-log.ts` 的 `logLoginLockHit`（+2 单测），auth.service 改调用；用户决定随 005 同一 commit，不单独提交。
+
+### 2026-10-26 005 Phase 8 / T031 代码执行完成（@dev-agent + AI）
+
+- 触发：用户「执行 Phase 8」。核查发现实现与测试已由前序会话落地（分页 DTO/service/list-page 模型、`softDelete→null`、`findByIdOrNull`、delete-result.dto.ts 已删、user-admin/swagger E2E 已迁、规划期文档已同步），本次补齐收尾：004 契约头部 T031 声明、tasks T031-1..10 勾选、全量门禁取证、/evolve、context 更新。
+- 验证（真实输出）：`pnpm lint` 退出 0；`pnpm test` 27 套件 231 项全绿；`pnpm test:e2e` 7 套件 50 项全绿（真实 mongod 27017 + redis 6379，ai_blog_test）；`pnpm build:local` 退出 0。
+- grep 取证（T031-8）：src/ test/ 无游标/items/DeleteResultResponse 业务残留，仅剩 `not.toHaveProperty('items'/'nextCursor')` 负断言、swagger 文档源哨兵 `not.toHaveProperty('DeleteResultResponse')` 与说明注释；user 模块无 cursor/limit 入参。
+- /evolve：产出 EVO-20261026003（CRUD data 五形态与分页范式须在首个列表接口落地前锁定；只读空结果 200/null 与写操作 404 分离），已归并 `agents/arch-agent/AGENTS.md` tasks 评审清单，evolution-mechanism 索引登记 applied。
+- 后续：handoff 执行方不自行置 complete，由编排方（arch-agent）verification-before-completion 后置 complete；提交/PR 需人工授权。
+
+### 2026-10-26 005 追加 T031 规划修订：CRUD data 五形态（@dev-agent + AI，纯规划层）
+
+- 触发：用户要求「统一增删差改」并写进规范——列表 `data:{total,list,page,pageTotal,index}`、删除 `data:null`、更新返回更新后数据、新增返回新数据、单查返回对象或 null。
+- 澄清 4 项（AskQuestion）：`index`=本页首条全局序号从 1 起（`(page-1)*pageSize+1`，首页 1、第 2 页=pageSize+1）；只读单查不存在改 200+`data:null`（404 只留给写操作目标不存在，非法 id 仍 400）；分页入参 `page`（缺省 1）+`pageSize`（缺省 20、封顶 50）替换 cursor/limit；范围 spec-only（代码后续按 tasks TDD）。
+- 结论（ADR-006 决策 16）：列表游标分页 `{items,nextCursor}` 改页码分页 `PageResult`（`pageTotal=ceil(total/pageSize)`，空库 0）；删除 `DeleteResultResponse{id}` 废止改 null；创建/更新现状即完整对象不改。属 executing 中第三次契约修订，按 EVO-20261026002 先改规划层再执行。
+- 改动（纯文档，未写生产代码）：005 spec（T031 权威修订块、FR-016/017/018、SC-008/009/010、PageResult 实体、US1 场景 3/4 与 US2 场景 4）、contracts/api-contract（头部五形态表、§2 三接口行、§3 列表/单查 null 示例）、data-model §6（PageResult class + Mongo skip/count 取数 + 用户模块映射）、tasks.md Phase 8（T031-1..T031-10 共 10 个任务，全部 ⬜，含 RED/GREEN/E2E/grep/文档/门禁与 /evolve）、quickstart（断言点+冒烟第 9 步）、ADR-006 决策 16 与更新记录、001 user-api（§4 分页、§5 单查 200/null、§7 删除 null、404 码表限定写操作）、001 quickstart/data-model、用户模块设计 §5 Service 表与 §7（游标段划线保留+页码段权威）、coding-style §1.4 新增「CRUD 响应 data 五形态」硬约束与更新记录、data-flows 登录段（顺带修正 T030 残留 code:'SUCCESS'/'INVALID_CREDENTIALS' 为数字外壳）。
+- 验证：纯 Markdown 规范改动，按规约 `[no-test]` 豁免；无 lint/test/build 运行、无代码改动。
+- 后续：dev-agent 认领执行 tasks Phase 8（T031-1..10，严格 TDD：分页 RED→GREEN、删除 null、只读 null 化、user-admin/swagger E2E 迁移、grep 残留、全量门禁），完成后 /evolve（候选教训：CRUD data 形态与分页风格是横切契约，应在首个列表接口落地前锁定——游标 → 页码已是本 feature 第三次契约返工）；handoff 仍 executing。
+
+### 2026-10-26 005 追加 T030：外壳 code 改数字且恒等于 HTTP 状态码（@dev-agent + AI）
+
+- 触发：用户指出前版未达要求——「服务的异常保留，但服务正常期间接口成功 200，TransformResponseInterceptor 里的 code 作为业务码需要返回对应的 200、401、500 等」。经一次澄清，拍板 `code` 全面数字=HTTP 状态（同状态细分码合并，仅靠 message 区分）。
+- 结论：`ApiResponse.code` 由 `string` 改 `number`，成功恒 200、失败即 400/401/403/404/409/500；服务异常链路（抛出位置、异常类型、HTTP 状态行、message、鉴权/校验）一字不动；10 个字符串码降为 Service/Guard 抛出值与 `ERROR_CATALOG` 的内部异常键，不再进响应体。先改 spec/contract/data-model/tasks（T030 修订块 + FR-002/FR-006/SC/Swagger）再 TDD。
+- 改动：`response.constants.ts`（`SUCCESS_CODE=HttpStatus.OK`、`code:number`）、`http-exception.filter.ts`（normalize 去掉字符串 code 返回，body `code=status`，message 仍按内部键查 `ERROR_CODES`）、`wrap-envelope.ts`（Success/Error Envelope code schema number，示例 200/409）；单测 4 个、业务 E2E 5 套件断言改数字（重复用户名/邮箱由 distinct code 改为同 409 + message 区分）；005 spec/contract/data-model/tasks/quickstart、ADR-006 决策 15、001/003/004 契约指针、coding-style §1.4 同步。
+- 验证（证据驱动）：RED 先确认 constants/filter/wrap-envelope 3 套件失败；GREEN 后 lint 0、单测 27 套件 222、E2E 7 套件 48、build:local 0；`src/`、`test/` 字符串 code 外壳断言 grep 0 命中（仅内部抛出点 `throw new XxxException('CODE')` 与 catalog 键保留）。
+- 坑：改 filter 单测时 `expect(...).toEqual(` 漏一个右括号导致 TS1135/TS1128，tsc 定位修复；无运行时逻辑问题。
+- 性质：executing 中用户二次追加契约变更（推翻 FR-006 字符串码），已落 tasks Phase 7 / ADR-006 决策 15 留痕；handoff 仍 executing；待 /evolve（候选：业务码值域选择须在 spec 早期定死，字符串码 ↔ 数字码在未交付 feature 内已是第二次返工）与人工授权提交/PR。
+
+### 2026-10-26 005 追加 T027：外壳四字段 + 错误文案集中 + Swagger 免逐接口注解（@dev-agent + AI）
+
+- 触发：用户要求「自己写响应拦截器构建 {success,code,message,data}，功能对标 @nestarc/safe-response，不需要每个 API 写 ApiResponse；data 支持 null/[]/{}，错误码统一配置，支持 Swagger」。
+- 结论：既有 005 外壳为五字段 `{code,data,message,path,time}` + 逐接口 Envelope 子类/`@ApiResponse`；T027 在同一未交付 feature 内一次性收敛：外壳改四字段（去 path/time 加 success），错误码文案集中 `ERROR_CODES`，Swagger 成功响应免注解走「官方 CLI 插件推断返回类型 + 文档生成后 wrapSuccessEnvelope 统一包裹」。
+- 改动：① `response.constants.ts` ApiResponse 四字段 + `ERROR_CODES`（10 码，哨兵单测锁全量集合）；② interceptor/filter 产 success、去 path/time，filter 文案查表（VALIDATION_ERROR 保留字段数组，未登记码回退原 message）；③ 新 `src/common/swagger/wrap-envelope.ts` 纯函数（allOf 包裹 2xx、豁免/4xx 不动、幂等，7 单测），setupSwagger createDocument 后调用；④ nest-cli.json 启用 `@nestjs/swagger` 插件，test/ts-jest.transformers.js（name/version/factory）+ jest-e2e.json 让 E2E 编译链路挂同一插件；⑤ 删 EnvelopeBase/5 成功子类与 9 个成功 @ApiResponse，data 模型归域 dto（login-result/user-list-page/delete-result），user.service list/softDelete 返回类型换 class，login controller 返回 class 替代 interface（插件不为 interface 生成 schema），logout 返回 null（原 data:{success:true} 与顶层 success 重复，废弃）；⑥ ErrorEnvelope 加 success:false。
+- 验证（证据驱动）：lint 0 warning；单测 28 套件 207（新增 wrap 7/错误码表 2/data 空值 3/未登记码 1）；E2E 7 套件 48（swagger 12 项：登录 200 allOf=SuccessEnvelope+LoginResultResponse、ErrorEnvelope 四字段、旧 5 Envelope/ErrorResponse 不存在、9 操作码集合与 4xx $ref 不变；业务 4 套件全等/键集合断言迁四字段，锁定期全等体恢复整体 toEqual——无 time 后不再需要 toMatchObject 退化）；tsc 0；build:local 0；3000 实 HTTP 冒烟 register201/409 文案中文/login/me/logout(data:null)/401。冒烟数据已清（1 条 smoke\_\*）。
+- 坑：① 无 @ApiResponse 时 swagger explorer 源码证实只产出空描述响应，运行时 design:returntype 反射不能解包 Promise/数组、拿不到 interface，免注解只能走编译期插件；② ts-jest transformer 条目是 require 自定义模块（导出 name/version/factory(compiler,options)），不是 [path,options] 元组，factory 内 `swagger.before({}, compiler.program)`；③ 沙箱拦 kill，冒烟进程 PID 40881 需沙箱外 `kill -9`（§8 老坑复发，未关）。
+- 性质：executing 中用户追加范围，已落 tasks.md T027 + ADR-006 决策 11/12 留痕；handoff 仍 executing；待 /evolve（候选：文档免注解的返回类型 class 约束；测试编译链路须与构建链路挂同一 AST 插件）与人工授权提交/PR。
+
+### 2026-10-26 005 追加 T026：守卫与鉴权错误文档绑定 @AuthOnly/@AdminOnly（@dev-agent + AI）
+
+- 触发：用户追问「能否把 `@ApiResponse`/`@ApiErrorResponses` 统一放到 guard 上、靠守卫抛的 error 处理」。
+- 结论：Swagger 文档在启动期由装饰器元数据静态生成，守卫在请求期才执行、Swagger 从不执行守卫，故**无法从运行时抛错自动派生文档**；可行等价方案是用 `applyDecorators` 把守卫与其真正会抛的错误文档静态绑成一个注解。
+- 改动：新增 `src/modules/user/guards/auth.decorators.ts`——`@AuthOnly()` = `UseGuards(RolesGuard)`（认证-only）+ `@ApiBearerAuth('Bearer')` + `ApiErrorResponses([401])`；`@AdminOnly()` = `@AuthOnly()` + `@Roles('admin')` + `ApiErrorResponses([403])`。user controller 6 个受保护接口（me×2、list/detail/admin/delete）与 auth logout 替换 `@UseGuards(RolesGuard)`/`@Roles`/`@ApiBearerAuth` 样板；接口 `@ApiErrorResponses` 去掉守卫负责的 401/403，只留接口自身 400/404/409。login 为 `@Public`，其 401 是凭据错误（非守卫、描述不同），不套用。200 成功外壳 data 类型逐接口不同，保留单条 `@ApiResponse({type})`。
+- 边界：401/403 可随守卫；400（ValidationPipe）、404/409（Service）、公开接口凭据 401 无法随守卫。
+- 测试（TDD）：先写 `auth.decorators.spec.ts` 2 用例（断言 GUARDS/ROLES/API_RESPONSE/API_SECURITY 元数据）RED→GREEN；Swagger 响应码集合不变，既有 E2E 哨兵仍绿。
+- 验证：lint 0；单测 27 套件 194；E2E 7 套件 48；build:local 0。文档：ADR-006 决策 9 + 替代方案（运行时派生否决）、coding-style §1.4、tasks T026。
+- 性质：用户在 executing 中追加的范围，已落 tasks.md 留痕；handoff 仍 executing，置 complete/提交/PR 待编排方与人工授权。
+
+### 2026-10-26 005 追加 T025：ApiErrorResponses 错误响应抽取（@dev-agent + AI）
+
+- 触发：用户要求「ApiResponse 抽取出去，不要每个接口逐个标 200/401」。澄清后选「组合装饰器工厂，按接口真实错误码一行声明」（非类级全套，避免假契约）。
+- 改动：`src/common/response/response-schemas.ts` 新增 `ERROR_DESCRIPTIONS`（400/401/403/404/409 默认描述集中维护）+ `ApiErrorResponses(statuses[], overrides?)`（applyDecorators 组合，未登记状态码 fail-fast）；auth/user controller 9 个接口的错误 `@ApiResponse` 全部替换为一行（如 `@ApiErrorResponses([400,401,403,404])`），特殊文案（登录 401、注册/改邮箱/删除 409、列表 400）走 overrides；成功 200/201 保留单个 `@ApiResponse({type:XEnvelope})`（data 类型逐接口不同）。
+- 测试：swagger-docs E2E 新增哨兵「9 操作响应码集合固定 + 所有 4xx \$ref ErrorEnvelope」（套件 11→12）；新增 `response-schemas.spec.ts` 3 用例（默认描述/覆盖/未知码抛错）。
+- 验证：lint 0；单测 26 套件 192；E2E 7 套件 48；build:local 0。文档：ADR-006 决策 8 + 替代方案（类级全套否决）、coding-style §1.4、tasks T025。
+- 性质：用户在 executing 中追加的范围，已落 tasks.md 新任务留痕（非自行扩规划）；handoff 仍 executing，置 complete/提交/PR 待编排方与人工授权。
+
+### 2026-10-26 005-unified-response E2E 迁移与收尾 T013–T023（@dev-agent + AI）
+
+- 目标：Phase 1–4 已完成（常量/filter/interceptor/装配/Swagger 模型），本会话认领执行 Phase 5/6：6 个业务套件断言迁外壳、豁免回归、残留清理、ADR/文档、全量门禁与手工冒烟。
+- 改动/结果：`user-register`（6/6）成功体 `toEqual` 五字段 + 顶层键集合、409 补 `data:null`/无 statusCode；`user-profile`（6/6）注册取 `data.id`、本人/改邮箱读 data、409 外壳；`user-admin`（6/6）列表 `data.items/nextCursor`、提权/删除读 data、删除 `data.toEqual({id})`、detail 400/404 + LAST_ADMIN 409 补外壳；`auth-login`（15/15）直接取 token 三处迁 `data.token`、logout 断言 data、全等体（未知账号 ≡ 错密码、锁定第六次 ≡ 第一次）改 `toMatchObject({code,data:null,path})` + `typeof time==='string'`（不比较 time，毫秒级可能不同）；`redis-health` ready 补不含 code/data/message 断言；`app` 根探活不改。
+- 残留 grep：`body.token|body.user|body.id|...` 0 命中；`statusCode` 仅剩负断言/文档源哨兵/filter 日志字段。
+- 文档：新建 ADR-006（Pending）并登记架构索引+更新记录；001/003/004 contracts 顶部加 005 指针声明；data-flows 登录段改五字段；coding-style §1.4 加「响应统一外壳、业务代码禁手工构造、错误码抛字符串、豁免走 isEnvelopeExcludedPath」条+更新记录。
+- 验证证据：`pnpm lint` 0；`pnpm test` 25 suites / 189；`pnpm test:e2e` 7 suites / 47；`pnpm build:local` exit 0。
+- 手工冒烟（start:local:3000）：注册 201 五字段；登录 data.token/user；me；logout `data.success:true` 后 401；错密 401 INVALID_CREDENTIALS；重名 409 USERNAME_EXISTS；普通用户列表 403；匿名 401 UNAUTHENTICATED；admin 提权（mongoose 直改 isAdmin，mongosh 不在 PATH）后坏 id 400 INVALID_ID、不存在 404 USER_NOT_FOUND；`GET /` 纯文本、live `{status:up}`、ready Terminus 原生；api-docs-json 含 6 个 Envelope 模型、ErrorEnvelope data nullable 无 statusCode、旧 ErrorResponse 不存在。冒烟数据已清理（deleteMany smoke\*，4 条）。
+- 坑：启动时 3000 被旧 watch 进程占用致两次 EADDRINUSE；kill 在沙箱内 Operation not permitted，需沙箱外执行。
+- 后续：T024 `/evolve`（候选教训：破坏性外壳变更的 E2E 全等体须在规划清点阶段就识别 time 类逐请求字段；豁免路径 filter 透传顺带修复 ready 503 旧偏差）；编排方 verification 后将 handoff 置 complete（执行方不自行置位）；提交 + PR 需人工授权。
 
 ### 2026-10-25 004-swagger-docs T030 编排方收尾（@arch-agent + AI）
 

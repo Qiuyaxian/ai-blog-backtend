@@ -31,8 +31,8 @@ describe('GET/POST /users/me', () => {
         email: 'alice@example.com',
         password: 'abc12345',
       })
-      .expect(201);
-    userId = res.body.id;
+      .expect(200);
+    userId = res.body.data.id;
     token = await loginHelper(app, credentials);
     sessionKeys.push(sessionKey(token));
   });
@@ -57,13 +57,16 @@ describe('GET/POST /users/me', () => {
       .get('/users/me')
       .set(authHeader(token))
       .expect(200);
-    expect(res.body).toMatchObject({
+    expect(res.body.data).toMatchObject({
       id: userId,
       username: 'Alice',
       email: 'alice@example.com',
       isAdmin: false,
     });
-    expect(res.body).not.toHaveProperty('password');
+    expect(res.body.data).not.toHaveProperty('password');
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
   });
 
   it('updates own email and normalizes it to lowercase', async () => {
@@ -72,21 +75,27 @@ describe('GET/POST /users/me', () => {
       .set(authHeader(token))
       .send({ email: 'NEW@Example.com' })
       .expect(200);
-    expect(res.body.email).toBe('new@example.com');
+    expect(res.body.data.email).toBe('new@example.com');
   });
 
   it('returns 409 EMAIL_EXISTS when the new email is taken', async () => {
     await request(app.getHttpServer())
       .post('/users')
       .send({ username: 'Bob', email: 'bob@example.com', password: 'abc12345' })
-      .expect(201);
+      .expect(200);
 
     const res = await request(app.getHttpServer())
       .post('/users/me')
       .set(authHeader(token))
       .send({ email: 'bob@example.com' })
       .expect(409);
-    expect(res.body.code).toBe('EMAIL_EXISTS');
+    expect(res.body).toMatchObject({
+      success: false,
+      code: 409,
+      data: null,
+    });
+    expect(res.body.message).toBe('邮箱已存在');
+    expect(res.body).not.toHaveProperty('statusCode');
   });
 
   it('returns 401 without a token or with a malformed token', async () => {
@@ -110,7 +119,7 @@ describe('GET/POST /users/me', () => {
       .get('/users/me')
       .set(authHeader(token))
       .expect(200);
-    expect(me.body.isAdmin).toBe(false);
+    expect(me.body.data.isAdmin).toBe(false);
   });
 
   it('returns 401 with an old token after the account is soft-deleted', async () => {

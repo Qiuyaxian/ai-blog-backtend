@@ -28,6 +28,7 @@
 
 ### 开发过程中
 
+0. **契约被推翻时先回规划层**（EVO-20261026002）：executing 中若用户要求改变已落地的响应/错误码等契约语义（即使 feature 未交付），必须先改 spec/contract/FR/ADR 并在 tasks 追加「契约修订」任务块，再按 TDD 改实现与全部下游断言/文档；禁止只改实现让契约文档滞后。
 1. 先写失败测试（RED），运行确认失败，再写最小实现（GREEN），绿灯下重构（REFACTOR）。
 2. 分层约束（宪法原则 II）：
    - **Controller**：只接收参数、调 Service、格式化响应；MUST NOT 依赖 `@Req/@Res`、写业务逻辑、直连 Redis。
@@ -64,6 +65,8 @@ src/modules/<domain>/
 ```
 
 横切能力放 `src/common/`（cache / filters / interceptors），健康检查放 `src/health/`。
+
+> EVO-20261026001：修改全局 filter/interceptor **输出形状**时，豁免路径（`GET /`、`/health/*`）的成功透传与异常透传两个分支都必须配测试。探针失败同样走异常管线（Terminus ready 503 抛 ServiceUnavailableException 经 HttpExceptionFilter），只测成功分支会漏掉失败体被改写。
 
 ## 🔴 数据层规范（MongoDB + Mongoose）
 

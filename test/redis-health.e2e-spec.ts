@@ -25,6 +25,10 @@ describe('Redis health (e2e)', () => {
     expect(body.status).toBe('ok');
     expect(body.info.redis).toEqual({ status: 'up' });
     expect(body.info.mongodb).toEqual({ status: 'up' });
+    // 豁免路径：Terminus 原生体不被统一外壳包裹
+    expect(body).not.toHaveProperty('code');
+    expect(body).not.toHaveProperty('data');
+    expect(body).not.toHaveProperty('message');
   });
 
   it('GET /health/live does not depend on redis details', async () => {

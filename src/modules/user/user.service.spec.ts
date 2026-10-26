@@ -165,6 +165,52 @@ describe('UserService.findById', () => {
   });
 });
 
+describe('UserService.findByIdOrNull', () => {
+  function setup(findOne: jest.Mock) {
+    // @ts-expect-error 注入最小 model 桩
+    const service: UserService = new UserService({ findOne });
+    return { service };
+  }
+
+  it('returns a sanitized user for a valid existing id', async () => {
+    const findOne = jest.fn().mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: '65ab00000000000000000001',
+          username: 'Alice',
+          email: 'alice@example.com',
+          isAdmin: false,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      }),
+    });
+    const { service } = setup(findOne);
+    const result = await service.findByIdOrNull('65ab00000000000000000001');
+    expect(result).toMatchObject({ id: '65ab00000000000000000001' });
+  });
+
+  it('returns null (no throw) when the user is missing or soft-deleted', async () => {
+    const findOne = jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    });
+    const { service } = setup(findOne);
+    await expect(
+      service.findByIdOrNull('65ab00000000000000000002'),
+    ).resolves.toBeNull();
+  });
+
+  it('throws 400 INVALID_ID for a malformed ObjectId', async () => {
+    const { service } = setup(jest.fn());
+    await expect(service.findByIdOrNull('not-an-id')).rejects.toMatchObject({
+      status: 400,
+      message: 'INVALID_ID',
+    });
+  });
+});
+
 describe('UserService.updateEmail', () => {
   function setup(model: Record<string, jest.Mock>) {
     // @ts-expect-error 注入最小 model 桩
@@ -247,11 +293,12 @@ describe('UserService admin operations', () => {
   const id = (n: number) => `65ab0000000000000000000${n.toString(16)}`;
   const doc = (n: number) => ({ _id: id(n), ...userFields });
 
-  /** 模拟 mongoose 链式 query：find().sort().limit().lean().exec() */
+  /** 模拟 mongoose 链式 query：find().sort().skip().limit().lean().exec() */
   function chain(result: unknown) {
     return {
       find: jest.fn().mockReturnThis(),
       sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       lean: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(result),
@@ -265,32 +312,65 @@ describe('UserService admin operations', () => {
   }
 
   describe('list', () => {
-    it('filters soft-deleted, sorts by _id desc, caps limit, sanitizes items, returns nextCursor', async () => {
-      const q = chain([doc(3), doc(2), doc(1)]);
-      const { service } = setup(q);
+    it('filters soft-deleted, sorts by _id desc, skips/limits by page, sanitizes list, and computes page fields', async () => {
+      const q = chain([doc(2), doc(1)]);
+      const countDocuments = jest
+        .fn()
+        .mockReturnValue({ exec: () => Promise.resolve(31) });
+      const { service } = setup({ ...q, countDocuments });
 
-      const result = await service.list({ limit: 2, cursor: id(4) });
+      const result = await service.list({ page: 2, pageSize: 20 });
 
-      expect(q.find).toHaveBeenCalledWith(
-        expect.objectContaining({ deletedAt: null }),
-      );
-      const filterArg = q.find.mock.calls[0][0];
-      expect(filterArg._id).toBeDefined();
+      expect(q.find).toHaveBeenCalledWith({ deletedAt: null });
       expect(q.sort).toHaveBeenCalledWith({ _id: -1 });
-      expect(q.limit).toHaveBeenCalledWith(3);
-      expect(result.items).toHaveLength(2);
-      expect(result.items[0]).toMatchObject({ id: id(3), username: 'u' });
-      expect(result.items[0]).not.toHaveProperty('password');
-      expect(result.nextCursor).toBe(id(2));
+      expect(q.skip).toHaveBeenCalledWith(20);
+      expect(q.limit).toHaveBeenCalledWith(20);
+      expect(result).toEqual({
+        total: 31,
+        list: [
+          { id: id(2), ...userFields },
+          { id: id(1), ...userFields },
+        ],
+        page: 2,
+        pageTotal: 2,
+        index: 21,
+      });
+      expect(result.list[0]).not.toHaveProperty('password');
     });
 
-    it('returns nextCursor null when the page is not full', async () => {
-      const q = chain([doc(2), doc(1)]);
-      const { service } = setup(q);
-      const result = await service.list({ limit: 2 });
-      expect(result.items).toHaveLength(2);
-      expect(result.nextCursor).toBeNull();
-      expect(q.limit).toHaveBeenCalledWith(3);
+    it('returns empty page shape with index 1 when no data exists', async () => {
+      const q = chain([]);
+      const countDocuments = jest
+        .fn()
+        .mockReturnValue({ exec: () => Promise.resolve(0) });
+      const { service } = setup({ ...q, countDocuments });
+
+      const result = await service.list({ page: 1, pageSize: 20 });
+
+      expect(result).toEqual({
+        total: 0,
+        list: [],
+        page: 1,
+        pageTotal: 0,
+        index: 1,
+      });
+      expect(q.skip).toHaveBeenCalledWith(0);
+    });
+
+    it('serves an out-of-range page as an empty list with computed index', async () => {
+      const q = chain([]);
+      const countDocuments = jest
+        .fn()
+        .mockReturnValue({ exec: () => Promise.resolve(21) });
+      const { service } = setup({ ...q, countDocuments });
+
+      const result = await service.list({ page: 3, pageSize: 10 });
+
+      expect(result.list).toEqual([]);
+      expect(result.total).toBe(21);
+      expect(result.pageTotal).toBe(3);
+      expect(result.index).toBe(21);
+      expect(q.skip).toHaveBeenCalledWith(20);
     });
   });
 
@@ -367,7 +447,7 @@ describe('UserService admin operations', () => {
       });
       const { service } = setup({ ...nonAdminLookup(), updateOne });
       const result = await service.softDelete({ id: id(1) });
-      expect(result).toEqual({ id: id(1) });
+      expect(result).toBeNull();
       expect(updateOne).toHaveBeenCalledWith(
         expect.objectContaining({ _id: expect.anything(), deletedAt: null }),
         expect.objectContaining({ $set: { deletedAt: expect.any(Date) } }),

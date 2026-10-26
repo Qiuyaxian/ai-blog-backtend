@@ -7,37 +7,41 @@ async function dtoFor(query: Record<string, unknown>) {
 }
 
 describe('UserQueryDto', () => {
-  it('defaults limit when absent', async () => {
+  it('defaults page=1 and pageSize=20 when absent', async () => {
     const dto = await dtoFor({});
     expect(await validate(dto)).toHaveLength(0);
-    expect(dto.limit).toBe(20);
-    expect(dto.cursor).toBeUndefined();
+    expect(dto.page).toBe(1);
+    expect(dto.pageSize).toBe(20);
   });
 
-  it('passes through a valid limit and cursor', async () => {
-    const dto = await dtoFor({
-      limit: '10',
-      cursor: '65ab00000000000000000001',
-    });
+  it('accepts numeric strings for page/pageSize', async () => {
+    const dto = await dtoFor({ page: '3', pageSize: '10' });
     expect(await validate(dto)).toHaveLength(0);
-    expect(dto.limit).toBe(10);
+    expect(dto.page).toBe(3);
+    expect(dto.pageSize).toBe(10);
   });
 
-  it('clamps an over-ceiling limit to 50', async () => {
-    const dto = await dtoFor({ limit: '999' });
+  it('clamps an over-ceiling pageSize to 50', async () => {
+    const dto = await dtoFor({ pageSize: '999' });
     expect(await validate(dto)).toHaveLength(0);
-    expect(dto.limit).toBe(50);
+    expect(dto.pageSize).toBe(50);
   });
 
-  it('rejects a non-numeric limit', async () => {
-    const dto = await dtoFor({ limit: 'abc' });
+  it('rejects a non-numeric pageSize', async () => {
+    const dto = await dtoFor({ pageSize: 'abc' });
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === 'limit')).toBe(true);
+    expect(errors.some((e) => e.property === 'pageSize')).toBe(true);
   });
 
-  it('rejects a malformed cursor', async () => {
-    const dto = await dtoFor({ cursor: 'nope' });
+  it('rejects page < 1', async () => {
+    const dto = await dtoFor({ page: '0' });
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === 'cursor')).toBe(true);
+    expect(errors.some((e) => e.property === 'page')).toBe(true);
+  });
+
+  it('rejects pageSize < 1', async () => {
+    const dto = await dtoFor({ pageSize: '0' });
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'pageSize')).toBe(true);
   });
 });

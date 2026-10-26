@@ -2,6 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { CacheService } from '../../common/cache/cache.service';
+import * as securityLog from '../../common/logger/security-log';
 import { UserService } from '../user/user.service';
 import {
   AUTH_FAIL_PREFIX,
@@ -239,7 +240,7 @@ describe('AuthService.login lockout (US4)', () => {
   });
 
   it('locked account: rejects even the correct password after one bcrypt, writes no fail/lock keys', async () => {
-    const logSpy = jest.spyOn(AuthService.prototype, 'logLockHit' as never);
+    const logSpy = jest.spyOn(securityLog, 'logLoginLockHit');
     const { service, incrWithTtl, set, del } = setupLock({
       locked: true,
       compare: true,

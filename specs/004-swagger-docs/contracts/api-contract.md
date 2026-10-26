@@ -2,6 +2,10 @@
 
 **性质**：本文件定义「Swagger 文档必须如何呈现既有接口」的契约，是文档注解与 E2E 断言的双向追溯依据。接口本身的请求/响应契约以 001 的 [user-api.md](../../001-user-module/contracts/user-api.md) 与 003 的 [auth-api.md](../../003-user-login/contracts/auth-api.md) 为唯一真相来源；本功能 **MUST NOT 改变任何接口行为**，只描述。
 
+> ⚠️ **2026-10-26（005-unified-response，T030）**：错误体形状为 `{ success:false, code, message, data:null }`（无 `statusCode`），成功响应为四字段外壳（业务数据在 `data`）；所有业务成功响应统一 200。**外壳 `code` 为数字且恒等于 HTTP 状态码（成功 200，失败 400/401/403/404/409/500）**；本文错误码表中的字符串（`INVALID_CREDENTIALS` 等）为服务端内部异常键，对外 `code` 输出对应数字，登录三类不可区分语义仍由「同 401 + 同 message」保证。文档源真实契约以 005 的 [api-contract.md](../../005-unified-response/contracts/api-contract.md) 为准，本文历史描述不再逐条改写。
+
+> ⚠️ **2026-10-26（005-unified-response，T031）**：CRUD `data` 五形态落地——`GET /users` 文档 data 为页码分页 `{total,list,page,pageTotal,index}`（入参 page/pageSize）；`GET /users/detail` data 为 `UserResponseDto|null`（不存在 200 + null，文档 404 仍全套注入）；`POST /users/delete` 与 `/auth/logout` data 为 `null`（`DeleteResultResponse` 模型已删）。详见 005 [api-contract.md](../../005-unified-response/contracts/api-contract.md)。
+
 所有响应错误体统一为 `{ code: string, message: string | string[], statusCode: number }`（既有 `HttpExceptionFilter`）。
 
 ## 1. 文档暴露契约
@@ -48,7 +52,7 @@
 - security：无。
 - body：`CreateUserDto`（username 2–32；email 合法邮箱 ≤254；password 8–64 且须同时含字母与数字）。
 - responses：
-  - 201：`UserResponseDto`（6 字段，无 password）
+  - 200：`UserResponseDto`（6 字段，无 password）
   - 400：`VALIDATION_ERROR`
   - 409：code=`USERNAME_EXISTS` 或 `EMAIL_EXISTS`
 

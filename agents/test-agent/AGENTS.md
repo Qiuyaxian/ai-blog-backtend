@@ -60,6 +60,8 @@
 - 数据相互独立、可重复执行；E2E 每个套件自清理。
 - 权限场景必须覆盖：未登录（无 `x-test-user` 桩/认证头）、普通用户、管理员。
 - 契约校验：HTTP 状态码、统一错误码、字段存在性与类型；错误响应不含堆栈/内部路径。
+- 动态字段断言（EVO-20261026001）：响应体含逐请求动态字段（`time`/requestId/时间戳）时禁止整体 `toEqual` 全等比较；稳定字段用 `toMatchObject`，动态字段只断言类型/格式，全等原本承担的安全语义用内容负断言保留。
+- 横切豁免双分支（EVO-20261026001）：修改全局 filter/interceptor 输出形状时，豁免路径的成功与异常两个分支都必须有测试；异常分支用抛出的 HttpException 单测透传（如 Terminus ready 503 走异常管线，见 005）。
 - 多环境 E2E（同进程验证非 local 环境行为，EVO-20261025001）：
   - 必须把 bootstrap 放进 `jest.isolateModules()` 回调并用 `require` 加载 AppModule/装配函数；禁止测试体内改 `process.env.NODE_ENV` 后动态 `import()`（模块缓存使 ConfigModule 的 envFilePath 闭包不重算）。
   - 必须在 `NestFactory.create` 之前显式覆盖全部相关 `process.env` 键（含被测开关本身）——`@nestjs/config` 不覆盖进程环境已有键，setup-env 加载的 `.env.local` 值会残留；连接类键指向 `127.0.0.1` 本地测试资源（MONGODB_URI 用 `ai_blog_test`、Redis 独立 keyPrefix），afterEach 逐键恢复。

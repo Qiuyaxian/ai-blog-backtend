@@ -45,7 +45,7 @@ describe('POST /auth/login (e2e)', () => {
       password: 'abc12345',
       ...overrides,
     };
-    await request(app.getHttpServer()).post('/users').send(body).expect(201);
+    await request(app.getHttpServer()).post('/users').send(body).expect(200);
     return body;
   }
 
@@ -63,24 +63,27 @@ describe('POST /auth/login (e2e)', () => {
       .send({ identifier: 'alice', password: 'abc12345' })
       .expect(200);
 
-    expect(res.body.token).toMatch(/^[0-9a-f]{64}$/);
-    rememberSessionKey(res.body.token);
+    expect(res.body.data.token).toMatch(/^[0-9a-f]{64}$/);
+    rememberSessionKey(res.body.data.token);
 
-    const expiresAt = new Date(res.body.expiresAt).getTime();
+    const expiresAt = new Date(res.body.data.expiresAt).getTime();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     expect(expiresAt - Date.now()).toBeGreaterThan(sevenDays - 5000);
     expect(expiresAt - Date.now()).toBeLessThanOrEqual(sevenDays);
 
-    expect(res.body.user).toMatchObject({
+    expect(res.body.data.user).toMatchObject({
       username: 'Alice',
       email: 'alice@example.com',
       isAdmin: false,
     });
-    expect(res.body.user.id).toEqual(expect.any(String));
-    expect(res.body.user.createdAt).toEqual(expect.any(String));
-    expect(res.body.user).not.toHaveProperty('password');
-    expect(res.body.user).not.toHaveProperty('usernameLower');
-    expect(res.body.user).not.toHaveProperty('deletedAt');
+    expect(res.body.data.user.id).toEqual(expect.any(String));
+    expect(res.body.data.user.createdAt).toEqual(expect.any(String));
+    expect(res.body.data.user).not.toHaveProperty('password');
+    expect(res.body.data.user).not.toHaveProperty('usernameLower');
+    expect(res.body.data.user).not.toHaveProperty('deletedAt');
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
   });
 
   it('logs in with spaced uppercase email', async () => {
@@ -89,17 +92,23 @@ describe('POST /auth/login (e2e)', () => {
       .post('/auth/login')
       .send({ identifier: ' ALICE@EXAMPLE.COM ', password: 'abc12345' })
       .expect(200);
-    expect(res.body.token).toMatch(/^[0-9a-f]{64}$/);
-    rememberSessionKey(res.body.token);
+    expect(res.body.data.token).toMatch(/^[0-9a-f]{64}$/);
+    rememberSessionKey(res.body.data.token);
   });
 
-  it('returns 401 INVALID_CREDENTIALS for wrong password', async () => {
+  it('returns 401 with numeric code for wrong password', async () => {
     await register();
     const res = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ identifier: 'alice', password: 'wrongpass99' })
       .expect(401);
-    expect(res.body.code).toBe('INVALID_CREDENTIALS');
+    expect(res.body).toMatchObject({
+      success: false,
+      code: 401,
+      data: null,
+    });
+    expect(res.body.message).toBe('用户名或密码错误');
+    expect(res.body).not.toHaveProperty('statusCode');
   });
 
   it('returns the same 401 shape for unknown identifier', async () => {
@@ -112,7 +121,14 @@ describe('POST /auth/login (e2e)', () => {
       .post('/auth/login')
       .send({ identifier: 'ghost', password: 'abc12345' })
       .expect(401);
-    expect(unknown.body).toEqual(wrongPassword.body);
+    const envelope = {
+      success: false,
+      code: 401,
+      data: null,
+      message: expect.any(String),
+    };
+    expect(unknown.body).toMatchObject(envelope);
+    expect(wrongPassword.body).toMatchObject(envelope);
   });
 
   async function login(
@@ -125,8 +141,8 @@ describe('POST /auth/login (e2e)', () => {
         password: overrides.password ?? 'abc12345',
       })
       .expect(200);
-    rememberSessionKey(res.body.token);
-    return res.body.token as string;
+    rememberSessionKey(res.body.data.token);
+    return res.body.data.token as string;
   }
 
   describe('US2 bearer authorization', () => {
@@ -137,7 +153,7 @@ describe('POST /auth/login (e2e)', () => {
         .get('/users/me')
         .set(authHeader(token))
         .expect(200);
-      expect(res.body).toMatchObject({
+      expect(res.body.data).toMatchObject({
         username: created.username,
         email: created.email,
       });
@@ -206,7 +222,7 @@ describe('POST /auth/login (e2e)', () => {
 
       // 降权前 admin 可访问
       await request(app.getHttpServer())
-        .get('/users?limit=1')
+        .get('/users?pageSize=1')
         .set(authHeader(token))
         .expect(200);
 
@@ -219,7 +235,7 @@ describe('POST /auth/login (e2e)', () => {
 
       // 降权即时生效：同一旧令牌访问 admin 接口 403
       await request(app.getHttpServer())
-        .get('/users?limit=1')
+        .get('/users?pageSize=1')
         .set(authHeader(token))
         .expect(403);
     });
@@ -234,7 +250,14 @@ describe('POST /auth/login (e2e)', () => {
         .post('/auth/logout')
         .set(authHeader(token))
         .expect(200)
-        .expect((res) => expect(res.body).toEqual({ success: true }));
+        .expect((res) =>
+          expect(res.body).toEqual({
+            success: true,
+            code: 200,
+            message: 'ok',
+            data: null,
+          }),
+        );
 
       await request(app.getHttpServer())
         .get('/users/me')
@@ -299,12 +322,19 @@ describe('POST /auth/login (e2e)', () => {
           .expect(401);
       }
 
-      // 第 6 次：即使密码正确，锁定期仍 401，且响应体与密码错误字节级同构
+      // 第 6 次：即使密码正确，锁定期仍 401，且错误外壳与密码错误全等
       const sixth = await request(app.getHttpServer())
         .post('/auth/login')
         .send({ identifier: 'alice', password: 'abc12345' })
         .expect(401);
-      expect(sixth.body).toEqual(first.body);
+      const lockedEnvelope = {
+        success: false,
+        code: 401,
+        message: '用户名或密码错误',
+        data: null,
+      };
+      expect(sixth.body).toEqual(lockedEnvelope);
+      expect(first.body).toEqual(lockedEnvelope);
       expect(JSON.stringify(sixth.body)).not.toMatch(
         /LOCKED|423|remaining|locked/i,
       );
@@ -335,7 +365,7 @@ describe('POST /auth/login (e2e)', () => {
         .post('/auth/login')
         .send({ identifier: 'alice', password: 'abc12345' })
         .expect(200);
-      rememberSessionKey(ok.body.token);
+      rememberSessionKey(ok.body.data.token);
     });
 
     it('isolates lockout per account: locking A does not block B', async () => {
@@ -356,7 +386,7 @@ describe('POST /auth/login (e2e)', () => {
         .post('/auth/login')
         .send({ identifier: 'bella', password: 'abc12345' })
         .expect(200);
-      rememberSessionKey(loginB.body.token);
+      rememberSessionKey(loginB.body.data.token);
     });
   });
 });

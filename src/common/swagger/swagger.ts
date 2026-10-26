@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { wrapSuccessEnvelope } from './wrap-envelope';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pkg = require('../../../package.json') as { version: string };
 
@@ -75,6 +76,9 @@ export function setupSwagger(
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, configBuilder);
+  const rawDocument = SwaggerModule.createDocument(app, configBuilder);
+  // 成功响应统一包 {success,code,message,data}：data 类型由 swagger CLI 插件从
+  // controller 返回类型推断，文档生成后在此一处包裹，控制器无需逐个 @ApiResponse
+  const document = wrapSuccessEnvelope(rawDocument);
   SwaggerModule.setup('api-docs', app, document);
 }

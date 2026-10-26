@@ -1,8 +1,10 @@
 # 接口契约：登录鉴权 API（Auth API）
 
+> ⚠️ **响应外壳已更新（2026-10-26，005-unified-response，T030）**：成功响应包入统一外壳 `{success,code,message,data}`（token/user 等在 `data` 内）；错误体为 `{success:false,code,message,data:null}`，不再含 `statusCode`。HTTP 状态码与本文鉴权约定不变；**外壳 `code` 为数字且恒等于 HTTP 状态码（成功 200，失败 400/401/403/404/409/500）**，本文错误码表中的字符串（`INVALID_CREDENTIALS`/`UNAUTHENTICATED` 等）为服务端内部异常键，对外 `code` 输出对应数字；登录标识不存在/密码错误/锁定三类仍完全不可区分（同 401、同 message）。外壳唯一真相见 [005 的 api-contract.md](../../005-unified-response/contracts/api-contract.md)。
+
 **日期**：2026-10-22 | **对应规格**：[spec.md](../spec.md) FR-001~021
 
-所有 HTTP 接口沿用现有约定：无外层 envelope，成功直接返回数据；错误统一体 `{ code, message, statusCode }`（`HttpExceptionFilter`）；结构化访问日志（不记录 body、不记录令牌）。
+所有 HTTP 接口沿用现有约定（错误响应由全局过滤器产出、结构化访问日志不记录 body/令牌）；响应外壳见上方 005 声明。
 
 ## 1. POST /auth/login — 登录（公开）
 

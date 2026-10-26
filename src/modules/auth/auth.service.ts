@@ -1,8 +1,9 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { CacheService } from '../../common/cache/cache.service';
+import { logLoginLockHit } from '../../common/logger/security-log';
 import { UserResponseDto } from '../user/dto/user-response.dto';
 import { UserService } from '../user/user.service';
 import { getAuthTokenTtlSeconds } from './auth.config';
@@ -33,8 +34,6 @@ const DUMMY_BCRYPT_HASH =
  */
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     private readonly cache: CacheService,
     private readonly userService: UserService,
@@ -57,7 +56,7 @@ export class AuthService {
     const locked = (await this.cache.get<string>(lockKey)) !== null;
     const matched = await bcrypt.compare(dto.password, credential.passwordHash);
     if (locked) {
-      this.logLockHit(credential.id);
+      logLoginLockHit(credential.id);
       throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
 
@@ -88,16 +87,6 @@ export class AuthService {
       expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
       user: credential.user,
     };
-  }
-
-  /**
-   * 锁定命中安全日志：真实原因码只入服务端日志（可按 requestId 关联），
-   * 对外仍回统一 401（FR-006，防账号枚举/主动锁死他人）。不记录密码/令牌。
-   */
-  logLockHit(userId: string): void {
-    this.logger.warn(
-      `login rejected: account locked, code=ACCOUNT_LOCKED, userId=${userId}`,
-    );
   }
 
   /**

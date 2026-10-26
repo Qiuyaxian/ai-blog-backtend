@@ -6,11 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { isValidObjectId, Model, Types } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { DeleteUserDto } from './dto/delete-user.dto';
 import { SetAdminDto } from './dto/set-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserListPageResponse } from './dto/user-list-page.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { toUserResponse, UserResponseDto } from './dto/user-response.dto';
 import { User, UserDocument } from './schemas/user.schema';
@@ -69,6 +70,19 @@ export class UserService {
       throw new NotFoundException('USER_NOT_FOUND');
     }
     return toUserResponse(doc);
+  }
+
+  /**
+   * 只读单查：未找到/已软删返回 null（HTTP 200 + data:null，不抛 404）。
+   * 非法 ObjectId 仍抛 400。写操作需对不存在目标抛 404，请用 {@link findById}。
+   */
+  async findByIdOrNull(id: string): Promise<UserResponseDto | null> {
+    this.assertObjectId(id);
+    const doc = await this.userModel
+      .findOne({ _id: id, deletedAt: null })
+      .lean()
+      .exec();
+    return doc ? toUserResponse(doc) : null;
   }
 
   /**
@@ -152,32 +166,27 @@ export class UserService {
     }
   }
 
-  async list(query: UserQueryDto): Promise<{
-    items: UserResponseDto[];
-    nextCursor: string | null;
-  }> {
-    // 多取一条判断是否有下一页；按 _id 游标倒序
-    const filter: { deletedAt: null; _id?: { $lt: Types.ObjectId } } = {
-      deletedAt: null,
-    };
-    if (query.cursor) {
-      this.assertObjectId(query.cursor);
-      filter._id = { $lt: new Types.ObjectId(query.cursor) };
-    }
+  async list(query: UserQueryDto): Promise<UserListPageResponse> {
+    const { page, pageSize } = query;
+    const filter: { deletedAt: null } = { deletedAt: null };
 
-    const docs = await this.userModel
-      .find(filter)
-      .sort({ _id: -1 })
-      .limit(query.limit + 1)
-      .lean()
-      .exec();
+    const [total, docs] = await Promise.all([
+      this.userModel.countDocuments(filter).exec(),
+      this.userModel
+        .find(filter)
+        .sort({ _id: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ]);
 
-    const hasMore = docs.length > query.limit;
-    const page = hasMore ? docs.slice(0, query.limit) : docs;
-    const last = page[page.length - 1];
     return {
-      items: page.map((doc) => toUserResponse(doc)),
-      nextCursor: hasMore && last ? String(last._id) : null,
+      total,
+      list: docs.map((doc) => toUserResponse(doc)),
+      page,
+      pageTotal: total === 0 ? 0 : Math.ceil(total / pageSize),
+      index: (page - 1) * pageSize + 1,
     };
   }
 
@@ -212,7 +221,7 @@ export class UserService {
     return toUserResponse(updated);
   }
 
-  async softDelete(dto: DeleteUserDto): Promise<{ id: string }> {
+  async softDelete(dto: DeleteUserDto): Promise<null> {
     this.assertObjectId(dto.id);
 
     // 删除管理员前检查：最后一名未删除管理员不可删
@@ -241,7 +250,7 @@ export class UserService {
     if (result.matchedCount === 0) {
       throw new NotFoundException('USER_NOT_FOUND');
     }
-    return { id: dto.id };
+    return null;
   }
 
   private toResponse(created: UserDocument): UserResponseDto {

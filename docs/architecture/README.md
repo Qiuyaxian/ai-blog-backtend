@@ -38,6 +38,7 @@
 | [ADR-003](./adr/ADR-003-redis-cache.md)                | Redis 作为统一缓存层及接入基线                                   | Confirmed | 2026-10-14（2026-10-15 实现+评审确认）  | 缓存基础设施 / 全部业务模块 |
 | [ADR-004](./adr/ADR-004-opaque-token-redis-session.md) | 登录会话：不透明令牌 + Redis 服务端会话 + 每请求账号回查         | Pending   | 2026-10-22（2026-10-23 实现转 Pending） | 登录鉴权模块                |
 | [ADR-005](./adr/ADR-005-swagger-api-docs.md)           | 在线接口文档：@nestjs/swagger，local/uat 开放、production 全 404 | Pending   | 2026-10-25                              | 横切文档 / 全部控制器       |
+| [ADR-006](./adr/ADR-006-unified-response-envelope.md)  | 全局统一响应外壳：成功包裹 / 错误扁平化，HTTP 状态码保留         | Pending   | 2026-10-26                              | 横切响应 / 全部业务接口     |
 
 > 新增 ADR 时，在此表追加一行。详细内容见 `adr/` 目录。
 
@@ -64,6 +65,7 @@
 
 > 只记重要变更，最新在上。完整历史见 Git。
 
+- 2026-10-26：`specs/005-unified-response` 实现（T001–T019），新增 ADR-006（全局统一响应外壳，Pending），登记 ADR 索引。
 - 2026-10-22：实现计划 `specs/003-user-login/plan.md` 产出，新增 ADR-004（不透明令牌 + Redis 服务端会话 + 每请求账号回查，Draft），登记 ADR 索引。
 - 2026-10-15：`specs/002-redis-integration` 实现并评审完成（T001–T018，TDD；单测 103 / E2E 20 全绿，含真实 Redis 的 fail-fast、断线即败、自动重连手工验证；OCR 评审 4 条意见已修复），ADR-003 与 `design/redis-integration-design.md` 及功能规格转 Confirmed。
 - 2026-10-14：实现计划 `specs/002-redis-integration/plan.md` 产出，新增 ADR-003（Redis 统一缓存层及接入基线，Draft）与 `design/redis-integration-design.md`（Draft），登记 ADR 索引与按需阅读表。

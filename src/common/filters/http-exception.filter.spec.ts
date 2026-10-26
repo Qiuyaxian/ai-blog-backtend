@@ -48,26 +48,27 @@ class CastError extends Error {
 describe('HttpExceptionFilter', () => {
   const filter = new HttpExceptionFilter();
 
-  it('业务异常输出统一错误外壳（code/data/message/path/time，无 statusCode）', () => {
+  it('业务异常输出统一错误外壳（success:false/数字 code=HTTP 状态/message/data:null，无 statusCode/path/time）', () => {
     const { host, res } = mockHost('/users');
     filter.catch(new ConflictException('USERNAME_EXISTS'), host);
 
     expect(res.statusCode).toBe(409);
     expect(res.payload).toEqual({
-      code: 'USERNAME_EXISTS',
+      success: false,
+      code: 409,
+      message: '用户名已存在',
       data: null,
-      message: 'USERNAME_EXISTS',
-      path: '/users',
-      time: expect.any(String),
     });
-    expect(
-      new Date((res.payload as { time: string }).time).getTime(),
-    ).not.toBeNaN();
+    expect(Object.keys(res.payload as object).sort()).toEqual(
+      ['code', 'data', 'message', 'success'].sort(),
+    );
     expect(res.payload).not.toHaveProperty('statusCode');
+    expect(res.payload).not.toHaveProperty('path');
+    expect(res.payload).not.toHaveProperty('time');
     expect(JSON.stringify(res.payload)).not.toMatch(/stack/i);
   });
 
-  it('校验错误（message 数组）归一为 VALIDATION_ERROR / 400', () => {
+  it('校验错误（message 数组）归一为数字 400，保留字段错误数组', () => {
     const { host, res } = mockHost('/users');
     filter.catch(
       new BadRequestException(['email must be an email', 'password too weak']),
@@ -76,27 +77,40 @@ describe('HttpExceptionFilter', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload).toEqual({
-      code: 'VALIDATION_ERROR',
-      data: null,
+      success: false,
+      code: 400,
       message: ['email must be an email', 'password too weak'],
-      path: '/users',
-      time: expect.any(String),
+      data: null,
     });
     expect(res.payload).not.toHaveProperty('statusCode');
   });
 
-  it('Mongoose CastError 映射为 INVALID_ID / 400', () => {
+  it('Mongoose CastError 映射为数字 400 与集中配置文案', () => {
     const { host, res } = mockHost('/users/detail');
     filter.catch(new CastError(), host);
 
     expect(res.statusCode).toBe(400);
     expect(res.payload).toEqual({
-      code: 'INVALID_ID',
+      success: false,
+      code: 400,
+      message: '无效的资源 ID',
       data: null,
-      message: 'invalid id',
-      path: '/users/detail',
-      time: expect.any(String),
     });
+  });
+
+  it('未登记字符串 code 的 HttpException 外壳 code 仍输出数字状态，文案回退异常 message', () => {
+    const { host, res } = mockHost('/users');
+    filter.catch(new ConflictException('SOME_NEW_BIZ_CODE'), host);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.payload).toMatchObject({
+      success: false,
+      code: 409,
+      data: null,
+    });
+    expect((res.payload as { message: string }).message).toBe(
+      'SOME_NEW_BIZ_CODE',
+    );
   });
 
   it('未知错误返回 500 统一外壳且不泄露内部细节', () => {
@@ -105,11 +119,10 @@ describe('HttpExceptionFilter', () => {
 
     expect(res.statusCode).toBe(500);
     expect(res.payload).toEqual({
-      code: 'INTERNAL_ERROR',
+      success: false,
+      code: 500,
+      message: '服务器内部错误',
       data: null,
-      message: 'internal server error',
-      path: '/x',
-      time: expect.any(String),
     });
     expect(JSON.stringify(res.payload)).not.toContain('ECONNREFUSED');
     expect(JSON.stringify(res.payload)).not.toContain('/secret/path');
@@ -127,6 +140,7 @@ describe('HttpExceptionFilter', () => {
 
     expect(res.statusCode).toBe(503);
     expect(res.payload).toEqual(terminusResult);
+    expect(res.payload).not.toHaveProperty('success');
     expect(res.payload).not.toHaveProperty('code');
     expect(res.payload).not.toHaveProperty('data');
   });

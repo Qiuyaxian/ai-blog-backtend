@@ -9,6 +9,7 @@ import {
 import { Response } from 'express';
 import {
   ApiResponse,
+  ERROR_CODES,
   isEnvelopeExcludedPath,
 } from '../response/response.constants';
 
@@ -34,7 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    const { status, code, message } = this.normalize(exception);
+    const { status, message } = this.normalize(exception);
 
     if (status >= 500) {
       // 服务端错误留内部日志，但不向客户端回传细节
@@ -44,12 +45,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
+    // 外壳业务码恒等于 HTTP 状态码（成功 200 由拦截器产出，此处均为错误状态）
     const body: ApiResponse<null> = {
-      code,
-      data: null,
+      success: false,
+      code: status,
       message,
-      path,
-      time: new Date().toISOString(),
+      data: null,
     };
     response.status(status).json(body);
   }
@@ -74,15 +75,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   private normalize(exception: unknown): {
     status: number;
-    code: string;
     message: string | string[];
   } {
     // 非法 ObjectId 透传到查询时 Mongoose 抛 CastError，统一映射 400
     if (this.isCastError(exception)) {
       return {
         status: HttpStatus.BAD_REQUEST,
-        code: 'INVALID_ID',
-        message: 'invalid id',
+        message: ERROR_CODES.INVALID_ID,
       };
     }
 
@@ -93,27 +92,34 @@ export class HttpExceptionFilter implements ExceptionFilter {
         typeof raw === 'string'
           ? { message: raw }
           : (raw as Record<string, unknown>);
-      const message =
+      const rawMessage =
         (resp.message as string | string[] | undefined) ?? exception.message;
 
-      // ValidationPipe 的非法输入：message 为字段错误数组，统一业务 code
-      if (status === HttpStatus.BAD_REQUEST && Array.isArray(message)) {
-        return { status, code: 'VALIDATION_ERROR', message };
+      // ValidationPipe 的非法输入：message 为字段错误数组，状态码即业务 code
+      if (status === HttpStatus.BAD_REQUEST && Array.isArray(rawMessage)) {
+        return { status, message: rawMessage };
       }
 
-      // Service 抛出的业务异常用字符串 message 承载稳定 code（如 USERNAME_EXISTS）
-      if (typeof message === 'string') {
-        return { status, code: message, message };
+      // Service/Guard 用字符串 message 承载内部异常键（如 USERNAME_EXISTS）：
+      // 外壳 code 输出数字 status，message 查集中目录，未登记键回退原 message
+      if (typeof rawMessage === 'string') {
+        return {
+          status,
+          message:
+            ERROR_CODES[rawMessage as keyof typeof ERROR_CODES] ?? rawMessage,
+        };
       }
 
-      const code = (resp.code as string | undefined) ?? 'ERROR';
-      return { status, code, message };
+      const code = (resp.code as string | undefined) ?? 'INTERNAL_ERROR';
+      return {
+        status,
+        message: ERROR_CODES[code as keyof typeof ERROR_CODES] ?? code,
+      };
     }
 
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
-      code: 'INTERNAL_ERROR',
-      message: 'internal server error',
+      message: ERROR_CODES.INTERNAL_ERROR,
     };
   }
 

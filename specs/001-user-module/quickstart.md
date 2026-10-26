@@ -26,7 +26,7 @@ pnpm test:e2e      # 自举应用，无需手动启动服务
 - 弱密码、非法邮箱、非法 ObjectId → 400。
 - 未认证 401；普通用户访问管理员接口 403。
 - 取消/删除唯一管理员 → 409；存在多名管理员时可降权/删除。
-- 软删后：列表不可见、详情 404、记录仍在、同名不能再注册、重复删除返回 404。
+- 软删后：列表不可见、只读详情返回 200 + `data:null`（005 T031；原 404 仅保留给写操作）、记录仍在、同名不能再注册、重复删除返回 404。
 
 ## 手动冒烟（可选，服务启动后）
 
@@ -34,12 +34,12 @@ pnpm test:e2e      # 自举应用，无需手动启动服务
 pnpm run start:local
 ```
 
-1. 注册：`POST /users` 合法 body → 201。
+1. 注册：`POST /users` 合法 body → 200。
 2. 同名再注册 → 409 `USERNAME_EXISTS`。
 3. （登录模块就绪后）带用户态 `GET /users/me` → 200 且无密码字段。
-4. 管理员 `GET /users?limit=10` → 列表与 nextCursor。
-5. 管理员 `GET /users/detail?id=...` → 200。
+4. 管理员 `GET /users?page=1&pageSize=10` → 200，`data` 为 `{total,list,page,pageTotal,index}`（005 T031 页码分页）。
+5. 管理员 `GET /users/detail?id=...` → 200；不存在/已软删的 id → 200 + `data:null`；非法 id → 400。
 6. 管理员 `POST /users/admin` `{id,isAdmin:false}`：唯一管理员 → 409。
-7. 管理员 `POST /users/delete` `{id}` → 200，随后详情 404、列表消失。
+7. 管理员 `POST /users/delete` `{id}` → 200 且 `data:null`，随后 detail 返回 200 + `data:null`、列表消失；重复删除 → 404。
 
 > 登录/令牌尚未在本模块实现；E2E 通过 `test/helpers/e2e-app.ts` 的测试桩（`x-test-user` 头注入 `request.user`）验证 Guard（tasks T035），手动冒烟的带态请求需待认证模块。

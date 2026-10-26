@@ -42,6 +42,9 @@
 - [ ] 跨模块只读协作口逐查询落任务：plan/data-model 中每一类他模块集合读取，tasks 都有对应「export Service 只读方法」的 RED+GREEN 任务；缺口未补齐不得置 ready_for_execution（EVO-20261023001）
 - [ ] 任务有明确验收标准与依赖顺序，无循环依赖
 - [ ] 状态标记遵循宪法「Spec 状态标记规范」：checkbox 为机器状态，✅/⬜/❌/🚫/⚠️ 图标紧随
+- [ ] 响应结构变更特性（新外壳/动态字段/统一错误码）：research/tasks 除逐测试文件清点全等断言外，spec/contract MUST 显式写清 `code`（及任何状态字段）的**类型与完整值域**、它与 HTTP 状态行的关系（恒等/独立编号/二元）、同一 HTTP 状态下多个细分原因的对外区分方式（独立码/message/额外字段）；三问缺一不通过 analyze（EVO-20261026002）
+- [ ] 含列表/CRUD 接口的特性：spec/contract MUST 在 analyze 前锁定 `data` 载荷形态清单与分页范式（游标/页码、入参名、缺省/封顶、空结果与越界页语义、计算字段公式如 `pageTotal`/`index`）；项目**首个列表接口**的契约即全项目分页范式，后续列表接口必须沿用，不得逐接口另选（游标 → 页码在 005 内返工三次，EVO-20261026003）；只读单查与写操作对「目标不存在」的对外语义必须显式区分（只读 200+`null` vs 写操作 404）
+- [ ] 响应结构变更特性（新外壳/动态字段）：research/tasks 逐测试文件清点「整体全等断言」（`toEqual(body)`）并写明改写模式（toMatchObject 稳定字段 + 动态字段断类型）；无清点不得置 ready_for_execution（EVO-20261026001）
 - [ ] analyze 闸门通过：spec/plan/tasks 三者一致
 
 ### Code Review
